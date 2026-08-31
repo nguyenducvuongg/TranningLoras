@@ -1,6 +1,7 @@
 """
 Gemini Multimodal AI Captioner
-Tận dụng sức mạnh của Google Gemini 2.5 (Pro, Flash, Flash-Lite) để sinh caption chất lượng cao cho cả Hình ảnh và Video.
+Tận dụng sức mạnh của toàn bộ dòng Google Gemini (2.5 Pro, 2.5 Flash, 2.5 Flash Lite, 2.0 Flash, 2.0 Pro Exp, 1.5 Pro, 1.5 Flash)
+để sinh caption chất lượng cao chuyên sâu theo từng dạng LoRA (Da, Upscale, Phong cách, Nhân vật, Video).
 """
 
 import os
@@ -12,27 +13,60 @@ from tqdm import tqdm
 from .key_manager import get_api_key
 from ..data.cleaner import get_supported_images, get_supported_videos
 
+# Toàn bộ danh sách model Gemini chính thức qua API
 GEMINI_MODELS = {
-    "Gemini-2.5-Flash": "gemini-2.5-flash",
     "Gemini-2.5-Pro": "gemini-2.5-pro",
+    "Gemini-2.5-Flash": "gemini-2.5-flash",
     "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite",
+    "Gemini-2.0-Flash": "gemini-2.0-flash",
+    "Gemini-2.0-Flash-Thinking": "gemini-2.0-flash-thinking-exp-01-21",
+    "Gemini-2.0-Pro-Exp": "gemini-2.0-pro-exp-02-05",
+    "Gemini-1.5-Pro": "gemini-1.5-pro",
+    "Gemini-1.5-Flash": "gemini-1.5-flash",
 }
 
+# Hướng dẫn độ dài caption
 LENGTH_PROMPTS = {
-    "Short": "Write a concise single-sentence caption describing the main subject and action, around 20-30 words.",
-    "Medium": "Write a detailed caption describing the subject, style, lighting, composition, and background, around 50-70 words.",
-    "Long": "Write a comprehensive and extremely detailed descriptive caption explaining every element, lighting, texture, and action, around 100-150 words.",
+    "Short": "Write a concise single-sentence caption, around 20-30 words.",
+    "Medium": "Write a detailed, informative caption, around 50-70 words.",
+    "Long": "Write a comprehensive, extremely detailed caption, around 100-150 words.",
+}
+
+# Các chế độ Prompt chuyên sâu theo từng loại LoRA
+TASK_SYSTEM_PROMPTS = {
+    "General": (
+        "You are an expert AI dataset captioner for Diffusion model training. "
+        "Describe the visual content objectively and clearly. Focus on main subject, lighting, action, and background. "
+    ),
+    "Skin_Portrait": (
+        "You are a specialized AI portrait and beauty retouching dataset captioner. "
+        "Focus on skin details: skin tone, natural pores, texture, subtle blemishes, makeup, facial features, eye reflections, and facial lighting. "
+        "Do NOT use vague words like 'perfect face'; describe the real photographic skin textures and lighting realistically. "
+    ),
+    "Upscale_Restoration": (
+        "You are an expert image super-resolution and enhancement dataset captioner. "
+        "Describe the ultra-sharp micro-details, fine fabric weaves, hair strands, crisp edges, surface textures, and photographic clarity. "
+    ),
+    "Art_Style": (
+        "You are an art style and aesthetic dataset captioner. "
+        "Describe the subject matter, composition, and lighting objectively while omitting specific art style labels (so the model can bind the visual style to the trigger word). "
+    ),
+    "Character_Outfit": (
+        "You are a character and fashion dataset captioner. "
+        "Describe the character's exact pose, hairstyle, facial expression, clothing items, patterns, fabrics, and accessories with high precision. "
+    ),
 }
 
 
 def caption_image_gemini(
     image_path: str,
     api_key: Optional[str] = None,
-    model_name: str = "gemini-2.5-flash",
+    model_alias: str = "Gemini-2.5-Flash",
     length_preset: str = "Medium",
+    task_mode: str = "General",
     custom_system_prompt: Optional[str] = None,
 ) -> str:
-    """Tạo caption cho 1 ảnh bằng Gemini API."""
+    """Tạo caption cho 1 ảnh bằng Gemini API với task mode chuyên sâu."""
     key = get_api_key("gemini", api_key)
     if not key:
         raise ValueError("Chưa cấu hình GEMINI_API_KEY. Vui lòng nhập API Key hoặc cài đặt trong Colab Secrets.")
@@ -40,22 +74,24 @@ def caption_image_gemini(
     from google import genai
     from google.genai import types
 
+    model_name = GEMINI_MODELS.get(model_alias, model_alias)
     client = genai.Client(api_key=key)
-    
+
     with open(image_path, "rb") as f:
         image_bytes = f.read()
 
+    base_task_prompt = TASK_SYSTEM_PROMPTS.get(task_mode, TASK_SYSTEM_PROMPTS["General"])
     length_guide = LENGTH_PROMPTS.get(length_preset, LENGTH_PROMPTS["Medium"])
-    base_prompt = (
-        "You are an expert AI dataset captioner for Diffusion model training. "
-        "Describe the visual content objectively and clearly. "
-        "Do NOT include conversational preambles like 'Here is the caption' or 'The image shows'. "
+
+    rules = (
+        "Do NOT include conversational preambles like 'Here is the caption' or 'The image depicts'. "
         "Always output clean English text only. "
     )
+
     if custom_system_prompt:
-        prompt = f"{base_prompt} {custom_system_prompt}. {length_guide}"
+        prompt = f"{base_task_prompt} {custom_system_prompt}. {length_guide} {rules}"
     else:
-        prompt = f"{base_prompt} {length_guide}"
+        prompt = f"{base_task_prompt} {length_guide} {rules}"
 
     response = client.models.generate_content(
         model=model_name,
@@ -72,7 +108,7 @@ def caption_image_gemini(
 def caption_video_gemini(
     video_path: str,
     api_key: Optional[str] = None,
-    model_name: str = "gemini-2.5-flash",
+    model_alias: str = "Gemini-2.5-Flash",
     length_preset: str = "Medium",
     custom_system_prompt: Optional[str] = None,
 ) -> str:
@@ -84,6 +120,7 @@ def caption_video_gemini(
     from google import genai
     from google.genai import types
 
+    model_name = GEMINI_MODELS.get(model_alias, model_alias)
     client = genai.Client(api_key=key)
 
     with open(video_path, "rb") as f:
@@ -91,10 +128,9 @@ def caption_video_gemini(
 
     length_guide = LENGTH_PROMPTS.get(length_preset, LENGTH_PROMPTS["Medium"])
     base_prompt = (
-        "You are an expert AI dataset captioner for Video Diffusion model training (like Wan 2.1). "
-        "Describe the main actions, camera movements, subject transformations, and atmosphere throughout the video. "
-        "Do NOT include conversational preambles. "
-        "Always output clean English text only. "
+        "You are an expert AI dataset captioner for Video Diffusion model training (Wan 2.1 / Wan 2.2). "
+        "Describe the subject, primary actions, camera motion (pan, tilt, zoom, static), speed, lighting dynamics, and atmosphere. "
+        "Do NOT include conversational preambles. Always output clean English text only. "
     )
     if custom_system_prompt:
         prompt = f"{base_prompt} {custom_system_prompt}. {length_guide}"
@@ -118,13 +154,14 @@ def batch_caption_gemini(
     api_key: Optional[str] = None,
     model_alias: str = "Gemini-2.5-Flash",
     length_preset: str = "Medium",
+    task_mode: str = "General",
     custom_system_prompt: Optional[str] = None,
     overwrite: bool = False,
     is_video_folder: bool = False,
 ) -> int:
-    """Chạy caption hàng loạt cho toàn bộ file trong thư mục qua Gemini."""
+    """Chạy batch caption toàn bộ thư mục qua Gemini với task mode chuyên sâu."""
     model_name = GEMINI_MODELS.get(model_alias, model_alias)
-    
+
     if is_video_folder:
         files = get_supported_videos(folder_path)
     else:
@@ -135,9 +172,9 @@ def batch_caption_gemini(
         return 0
 
     success_count = 0
-    print(f"🚀 Bắt đầu sinh caption qua Gemini ({model_name}) cho {len(files)} tệp...")
+    print(f"🚀 Bắt đầu sinh caption qua Gemini ({model_name}) | Chế độ: {task_mode} cho {len(files)} tệp...")
 
-    for file_path in tqdm(files, desc="Gemini Captioning"):
+    for file_path in tqdm(files, desc=f"Gemini [{task_mode}]"):
         cap_path = os.path.splitext(file_path)[0] + ".txt"
         if os.path.exists(cap_path) and not overwrite and os.path.getsize(cap_path) > 0:
             continue
@@ -145,11 +182,20 @@ def batch_caption_gemini(
         try:
             if is_video_folder:
                 caption = caption_video_gemini(
-                    file_path, api_key, model_name, length_preset, custom_system_prompt
+                    file_path,
+                    api_key=api_key,
+                    model_alias=model_alias,
+                    length_preset=length_preset,
+                    custom_system_prompt=custom_system_prompt,
                 )
             else:
                 caption = caption_image_gemini(
-                    file_path, api_key, model_name, length_preset, custom_system_prompt
+                    file_path,
+                    api_key=api_key,
+                    model_alias=model_alias,
+                    length_preset=length_preset,
+                    task_mode=task_mode,
+                    custom_system_prompt=custom_system_prompt,
                 )
 
             if caption:
@@ -157,7 +203,6 @@ def batch_caption_gemini(
                     f.write(caption + "\n")
                 success_count += 1
 
-            # Sleep nhẹ để tránh chạm quota limit
             time.sleep(0.5)
 
         except Exception as e:

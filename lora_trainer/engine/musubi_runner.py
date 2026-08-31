@@ -1,28 +1,37 @@
 """
 Kohya Musubi-Tuner Runner
 Quản lý quy trình cài đặt, tiền cache (Latents, Text Encoders) và kích hoạt tiến trình huấn luyện qua Accelerate.
+Luôn đảm bảo cập nhật phiên bản mới nhất từ kho mã nguồn chính thức.
 """
 
 import os
 import sys
 import subprocess
 from typing import Dict, Any, Optional
-from ..config.musubi_config import MusubiConfigBuilder
-
 
 MUSUBI_REPO_URL = "https://github.com/kohya-ss/musubi-tuner.git"
 DEFAULT_MUSUBI_DIR = "/content/musubi-tuner"
 
 
 def setup_musubi_repo(musubi_dir: str = DEFAULT_MUSUBI_DIR) -> str:
-    """Tự động clone hoặc cập nhật kho mã nguồn Kohya Musubi-Tuner."""
+    """Tự động clone hoặc kéo commit mới nhất kèm submodule của Kohya Musubi-Tuner."""
     if not os.path.exists(musubi_dir):
-        print(f"📦 Đang tải kho mã nguồn Musubi-Tuner từ GitHub...")
+        print(f"📦 Đang tải kho mã nguồn Musubi-Tuner mới nhất từ GitHub...")
         subprocess.run(["git", "clone", "--recurse-submodules", MUSUBI_REPO_URL, musubi_dir], check=True)
     else:
-        print(f"🔄 Đang cập nhật Musubi-Tuner...")
+        print(f"🔄 Đang cập nhật Musubi-Tuner lên bản mới nhất (git pull & submodules)...")
         try:
+            subprocess.run(["git", "-C", musubi_dir, "checkout", "main"], check=False)
             subprocess.run(["git", "-C", musubi_dir, "pull"], check=False)
+            subprocess.run(["git", "-C", musubi_dir, "submodule", "update", "--init", "--recursive"], check=False)
+        except Exception as e:
+            print(f"⚠️ Cảnh báo khi update: {e}")
+
+    # Đảm bảo cài đặt các phụ thuộc nếu có file requirements
+    req_file = os.path.join(musubi_dir, "requirements.txt")
+    if os.path.exists(req_file):
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req_file], check=False)
         except Exception:
             pass
 
@@ -57,7 +66,7 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
 
 
 def run_musubi_pipeline(
-    musubi_dir: str,
+    musubi_dir: str = DEFAULT_MUSUBI_DIR,
     cache_latents_cmd: Optional[str] = None,
     cache_text_encoder_cmd: Optional[str] = None,
     train_cmd: Optional[str] = None,

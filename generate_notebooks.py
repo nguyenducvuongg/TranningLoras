@@ -3,7 +3,9 @@ import os
 
 os.makedirs("notebooks", exist_ok=True)
 
-def create_cell(cell_type, source, title=None):
+GITHUB_REPO_URL = "https://github.com/nguyenducvuongg/TranningLoras.git"
+
+def create_cell(cell_type, source):
     if isinstance(source, list):
         src_lines = [s + "\n" for s in source[:-1]] + [source[-1]] if source else []
     else:
@@ -44,13 +46,24 @@ def save_notebook(filepath, cells):
 # 1. 01_Universal_Image_LoRA_Trainer.ipynb
 # ==============================================================================
 cells_image = [
-    create_cell("markdown", """# 🎨 Universal Image LoRA Trainer (Google Colab)
-Hệ thống huấn luyện LoRA hình ảnh đa năng, tối ưu hóa bộ nhớ VRAM cho FLUX.1, FLUX.2 Klein, Qwen-Image, Qwen-Image-Edit, Z-Image Turbo và Krea2.
+    create_cell("markdown", f"""# 🎨 Universal Image LoRA Trainer (Google Colab)
+Bộ công cụ huấn luyện LoRA Hình Ảnh đa năng, tối ưu hóa bộ nhớ VRAM cho **FLUX.1, FLUX.2 Klein, Qwen-Image, Qwen-Image-Edit, Z-Image Turbo và Krea2**.
+
+---
+### 📚 Hướng Dẫn Chuẩn Bị Dữ Liệu Cho Từng Dạng LoRA:
+1. **LoRA Nhân vật / Concept / Phong cách (Standard LoRA)**:
+   - Đặt toàn bộ ảnh và file `.txt` caption vào một thư mục (VD: `/content/drive/MyDrive/LoRA_Data/20_cyberpunk_girl`).
+   - Có thể đặt tên thư mục theo cú pháp `{{repeats}}_{{tên}}` để tự nhận số lần lặp.
+2. **LoRA Xử lý Da / Retouch / Phục hồi / Upscale (Paired Control LoRA)**:
+   - Chuẩn bị 2 thư mục:
+     - `Control_Folder`: Chứa ảnh đầu vào (ảnh da mụn/thô, ảnh mờ/nén).
+     - `Train_Folders`: Chứa ảnh kết quả chất lượng cao (ảnh da đã chỉnh đẹp, ảnh gốc 4K siêu nét).
+     - **Lưu ý**: Ảnh ở 2 thư mục phải có **tên tệp giống nhau 1-1** (VD: `001.jpg`, `002.jpg`).
 """),
 
-    create_cell("markdown", "### ☕ Bước 1: Khởi tạo Môi trường & Nhận diện Phần cứng"),
-    create_cell("code", """# @title ⚙️ 1. Cài đặt Thư viện & Kiểm tra GPU
-# @markdown Bấm nút Play để cài đặt môi trường huấn luyện tối ưu
+    create_cell("markdown", "### ☕ Bước 1: Khởi tạo Môi trường & Nhận diện GPU"),
+    create_cell("code", f"""# @title ⚙️ 1. Cài đặt Thư viện & Kiểm tra GPU
+# @markdown Nhấn nút Play để cài đặt môi trường tối ưu cho Colab
 
 import os
 import sys
@@ -63,37 +76,42 @@ if not os.path.exists('/content/drive'):
 # Cài đặt các gói phụ thuộc
 !pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow
 
-# Clone repo & Cài đặt lora_trainer
-if not os.path.exists('/content/colab-lora-trainer'):
-    !git clone https://github.com/nguyenducvuong/TranningLoras /content/colab-lora-trainer || cp -r /content/drive/MyDrive/TranningLoras /content/colab-lora-trainer 2>/dev/null || true
+# Clone / Cập nhật repo chính thức
+if not os.path.exists('/content/TranningLoras'):
+    !git clone {GITHUB_REPO_URL} /content/TranningLoras
+else:
+    !git -C /content/TranningLoras pull
 
-if os.path.exists('/content/colab-lora-trainer'):
-    %cd /content/colab-lora-trainer
-    !pip install -q -e .
+%cd /content/TranningLoras
+!pip install -q -e .
 
 from lora_trainer.engine.hardware import detect_hardware_environment, setup_cuda_environment
 hw_info = detect_hardware_environment()
 
 print("\\n" + "="*60)
-print(f"🚀 GPU: {hw_info['gpu_name']} | VRAM: {hw_info['vram_gb']} GB ({hw_info['device_tier']})")
-print(f"⚡ Khuyến nghị: FP8 = {hw_info['recommended_fp8']} | Batch Size = {hw_info['recommended_batch_size']} | Res = {hw_info['recommended_resolution']}")
+print(f"🚀 GPU: {{hw_info['gpu_name']}} | VRAM: {{hw_info['vram_gb']}} GB ({{hw_info['device_tier']}})")
+print(f"⚡ Khuyến nghị: FP8 = {{hw_info['recommended_fp8']}} | Batch Size = {{hw_info['recommended_batch_size']}} | Res = {{hw_info['recommended_resolution']}}")
 print("="*60 + "\\n")
 """),
 
-    create_cell("markdown", "### 📂 Bước 2: Chuẩn bị Dữ liệu & Gán Nhãn Tự Động (AI Captioning)"),
-    create_cell("code", """# @title 📂 2. Cấu hình Thư mục & Caption AI
-# @markdown Nhập đường dẫn thư mục ảnh trên Google Drive (có thể nhập nhiều thư mục cách nhau bởi dấu phẩy)
+    create_cell("markdown", "### 📂 Bước 2: Chuẩn bị Dữ liệu & AI Captioning Chuyên Sâu"),
+    create_cell("code", """# @title 📂 2. Cấu hình Dữ liệu & AI Captioning
+# @markdown Nhập đường dẫn thư mục ảnh trên Google Drive:
 
 Train_Folders = "/content/drive/MyDrive/LoRA_Data/MyConcept" # @param {type:'string'}
+# @markdown 💡 `Control_Folder chỉ dùng khi train LoRA dạng Edit / Inpainting / Xử lý da / Upscale (như FLUX Kontext, Qwen Edit)`
 Control_Folder = "" # @param {type:'string'}
 Clean_Data = True # @param {type:'boolean'}
 
 # @markdown 🤖 **Tùy chọn AI Captioning**
-Caption_Engine = "None" # @param ["None", "Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
+Caption_Engine = "Gemini-2.5-Flash" # @param ["None", "Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Gemini-2.0-Flash", "Gemini-2.0-Flash-Thinking", "Gemini-2.0-Pro-Exp", "Gemini-1.5-Pro", "Gemini-1.5-Flash", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
+# @markdown 🎯 **Chế độ Prompt chuyên biệt theo mục đích LoRA:**
+Task_Mode = "General" # @param ["General", "Skin_Portrait", "Upscale_Restoration", "Art_Style", "Character_Outfit"]
 Caption_Length = "Medium" # @param ["Short", "Medium", "Long"]
 API_Key = "" # @param {type:'string'}
 Custom_Trigger_Word = "" # @param {type:'string'}
 Add_Folder_Name = False # @param {type:'boolean'}
+Overwrite_Existing_Captions = False # @param {type:'boolean'}
 
 from lora_trainer.data.cleaner import clean_directory
 from lora_trainer.data.dataset_builder import build_dataset_list, check_folder_stats
@@ -112,13 +130,20 @@ for folder in folder_list:
 
     # Chạy Captioning
     if Caption_Engine.startswith("Gemini"):
-        batch_caption_gemini(folder, api_key=API_Key, model_alias=Caption_Engine, length_preset=Caption_Length)
+        batch_caption_gemini(
+            folder,
+            api_key=API_Key,
+            model_alias=Caption_Engine,
+            length_preset=Caption_Length,
+            task_mode=Task_Mode,
+            overwrite=Overwrite_Existing_Captions,
+        )
     elif Caption_Engine == "Florence-2":
-        batch_caption_florence(folder, task_preset=Caption_Length)
+        batch_caption_florence(folder, task_preset=Caption_Length, overwrite=Overwrite_Existing_Captions)
     elif Caption_Engine == "JoyCaption":
-        batch_caption_joycaption(folder, caption_length=Caption_Length.lower())
+        batch_caption_joycaption(folder, caption_length=Caption_Length.lower(), overwrite=Overwrite_Existing_Captions)
     elif Caption_Engine == "OpenAI-GPT4o":
-        batch_caption_openai(folder, api_key=API_Key, length_preset=Caption_Length)
+        batch_caption_openai(folder, api_key=API_Key, length_preset=Caption_Length, overwrite=Overwrite_Existing_Captions)
 
     if Add_Folder_Name:
         add_folder_name_tags(folder)
@@ -130,10 +155,13 @@ for folder in folder_list:
     print(f"📊 Thống kê {folder}: {stats.get('total_images', 0)} ảnh, {stats.get('captioned_files', 0)} caption ({stats.get('caption_ratio_pct', 0)}%)")
 """),
 
-    create_cell("markdown", "### 🚀 Bước 3: Cấu hình Model & Khởi chạy Huấn luyện"),
+    create_cell("markdown", """### 🚀 Bước 3: Cấu hình Model & Khởi chạy Huấn luyện
+💡 **Gợi ý thiết lập cho các bài toán đặc biệt:**
+- **LoRA Xử lý Da / Portrait**: Chọn `FLUX.1-Kontext-dev` hoặc `Qwen-Image-Edit`, nhập `Control_Folder`, đặt LR = 1e-4, Dim = 32, Alpha = 16.
+- **LoRA Upscale / Tăng nét**: Chọn `FLUX.1-Kontext-dev`, đặt Dim = 16, Alpha = 16, LR = 1.5e-4.
+- **LoRA Phong cách (Art Style)**: Chọn `FLUX.2-klein-base-9B` hoặc `Z-Image-Turbo`, không nhập Control_Folder, đặt LR = 1e-4, Dim = 32.
+"""),
     create_cell("code", """# @title 🛠️ 3. Thiết lập Tham số & Bắt đầu Huấn luyện
-# @markdown Chọn mô hình và các tham số tối ưu
-
 Model_Type = "FLUX.2-klein-base-9B" # @param ["FLUX.2-klein-base-9B", "FLUX.2-klein-base-4B", "Qwen-Image", "Qwen-Image-Edit", "Qwen-Image-Edit-2509", "Qwen-Image-Edit-2511", "Z-Image-Turbo", "Z-Image-Base", "Z-Image-De-Turbo", "FLUX.1-Kontext-dev", "FLUX.1-dev", "FLUX.1-schnell", "Krea2-Raw"]
 
 Output_Directory = "/content/drive/MyDrive/LoRA_Outputs" # @param {type:'string'}
@@ -193,7 +221,6 @@ if engine_type == "musubi":
         image_folders=datasets,
     )
 
-    # Sinh câu lệnh Cache Latents & Text Encoders
     vae_path = weights.get("vae", "")
     clip1_path = weights.get("text_encoder1", "")
     clip2_path = weights.get("text_encoder2", None)
@@ -203,7 +230,6 @@ if engine_type == "musubi":
     cache_latents_cmd = builder.build_cache_latents_args(dataset_toml, vae_path, clip_vision)
     cache_te_cmd = builder.build_cache_text_encoder_args(dataset_toml, clip1_path, clip2_path)
 
-    # Preview prompt
     sample_txt_path = "/content/sample_prompt.txt"
     if Sample_Prompt == "":
         p, img, ctrl = get_random_sample_prompt(datasets[0]["path"], datasets[0].get("control_path"))
@@ -234,7 +260,6 @@ if engine_type == "musubi":
     )
 
 else:
-    # Toolkit Engine (FLUX.1)
     builder = ToolkitConfigBuilder(
         model_name=Model_Type,
         output_dir=Output_Directory,
@@ -278,12 +303,18 @@ save_notebook("notebooks/01_Universal_Image_LoRA_Trainer.ipynb", cells_image)
 # 2. 02_Universal_Video_LoRA_Trainer.ipynb
 # ==============================================================================
 cells_video = [
-    create_cell("markdown", """# 🎥 Universal Video LoRA Trainer (Wan 2.1 & Wan 2.2)
-Hệ thống huấn luyện LoRA Video chuyên sâu trên Google Colab hỗ trợ Text-to-Video và Image-to-Video với Wan 2.1 và Wan 2.2.
+    create_cell("markdown", f"""# 🎥 Universal Video LoRA Trainer (Wan 2.1 & Wan 2.2)
+Hệ thống huấn luyện LoRA Video chuyên sâu trên Google Colab hỗ trợ **Text-to-Video** và **Image-to-Video** với **Wan 2.1** và **Wan 2.2**.
+
+---
+### 📚 Hướng Dẫn Chuẩn Bị Video Dataset:
+- Chuẩn bị 10 - 50 video clips ngắn (3 - 10 giây mỗi clip), định dạng `.mp4`.
+- Tỉ lệ khuyến nghị: 16:9 (`720,1280`) hoặc 9:16 (`1280,720`).
+- Đặt lượng frame mục tiêu (`Target_Frames`): 25, 33, 49 hoặc 81 frames.
 """),
 
     create_cell("markdown", "### ☕ Bước 1: Khởi tạo Môi trường & Kiểm tra GPU"),
-    create_cell("code", """# @title ⚙️ 1. Cài đặt Môi trường
+    create_cell("code", f"""# @title ⚙️ 1. Cài đặt Môi trường
 import os
 from google.colab import drive
 if not os.path.exists('/content/drive'):
@@ -291,22 +322,22 @@ if not os.path.exists('/content/drive'):
 
 !pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow av opencv-python-headless
 
-if not os.path.exists('/content/colab-lora-trainer'):
-    !git clone https://github.com/nguyenducvuong/TranningLoras /content/colab-lora-trainer || cp -r /content/drive/MyDrive/TranningLoras /content/colab-lora-trainer 2>/dev/null || true
+if not os.path.exists('/content/TranningLoras'):
+    !git clone {GITHUB_REPO_URL} /content/TranningLoras
+else:
+    !git -C /content/TranningLoras pull
 
-if os.path.exists('/content/colab-lora-trainer'):
-    %cd /content/colab-lora-trainer
-    !pip install -q -e .
+%cd /content/TranningLoras
+!pip install -q -e .
 
 from lora_trainer.engine.hardware import detect_hardware_environment
 hw = detect_hardware_environment()
-print(f"🚀 GPU: {hw['gpu_name']} | VRAM: {hw['vram_gb']} GB")
+print(f"🚀 GPU: {{hw['gpu_name']}} | VRAM: {{hw['vram_gb']}} GB")
 """),
 
     create_cell("markdown", "### 📂 Bước 2: Dữ liệu Video, Frame Slicing & AI Captioning"),
     create_cell("code", """# @title 📂 2. Xử lý Dữ liệu Video & Cắt Frame
 Video_Folders = "/content/drive/MyDrive/LoRA_Video_Data" # @param {type:'string'}
-Image_Folders = "" # @param {type:'string'}
 
 # @markdown 🎞️ **Cấu hình Trích xuất Khung hình (Frame Extraction)**
 Frame_Extraction = "chunk" # @param ["chunk", "slide", "uniform", "head", "full"]
@@ -315,8 +346,9 @@ Frame_Stride = 1 # @param {type:'integer'}
 Frame_Sample = 1 # @param {type:'integer'}
 Max_Frames = 33 # @param {type:'integer'}
 
-# @markdown 🤖 **Tự động gán nhãn Video bằng Gemini 2.5**
+# @markdown 🤖 **Tự động gán nhãn Video bằng Gemini API (Đọc video trực tiếp)**
 Auto_Caption_Video = False # @param {type:'boolean'}
+Gemini_Model = "Gemini-2.5-Flash" # @param ["Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Gemini-2.0-Flash", "Gemini-1.5-Pro", "Gemini-1.5-Flash"]
 Gemini_API_Key = "" # @param {type:'string'}
 Custom_Tag = "" # @param {type:'string'}
 
@@ -327,7 +359,7 @@ from lora_trainer.data.tag_processor import process_dir_tags
 for v_dir in [d.strip() for d in Video_Folders.split(",") if d.strip()]:
     clean_directory(v_dir)
     if Auto_Caption_Video:
-        batch_caption_gemini(v_dir, api_key=Gemini_API_Key, model_alias="Gemini-2.5-Flash", is_video_folder=True)
+        batch_caption_gemini(v_dir, api_key=Gemini_API_Key, model_alias=Gemini_Model, is_video_folder=True)
     if Custom_Tag:
         process_dir_tags(v_dir, Custom_Tag)
     vids = get_supported_videos(v_dir)
@@ -352,7 +384,6 @@ Timestep_Sampling = "shift" # @param ["shift", "sigma", "uniform", "sigmoid", "l
 Timestep_Boundary = 875 # @param {"type":"slider","min":0,"max":1000,"step":5}
 Sample_Prompt = "" # @param {type:'string'}
 Sample_Every_N_Steps = 200 # @param {type:'integer'}
-Sample_Initial_Image = "" # @param {type:'string'}
 
 Auto_Disconnect = False # @param {type:'boolean'}
 
@@ -436,12 +467,12 @@ save_notebook("notebooks/02_Universal_Video_LoRA_Trainer.ipynb", cells_video)
 # 3. 03_Dataset_Captioning_Tools.ipynb
 # ==============================================================================
 cells_caption = [
-    create_cell("markdown", """# 📝 AI Dataset Captioning & Tagging Studio
-Bộ công cụ chuyên dụng để dọn dẹp, phân tích và gán nhãn tự động cho tập dữ liệu hình ảnh & video sử dụng Gemini 2.5, Florence-2, JoyCaption, OpenAI.
+    create_cell("markdown", f"""# 📝 AI Dataset Captioning & Tagging Studio
+Bộ công cụ chuyên dụng để dọn dẹp, phân tích và gán nhãn tự động cho tập dữ liệu hình ảnh & video sử dụng **Gemini (1.5, 2.0, 2.5), Florence-2, JoyCaption, OpenAI**.
 """),
 
-    create_cell("markdown", "### ☕ Bước 1: Cài đặt"),
-    create_cell("code", """# @title ⚙️ 1. Cài đặt Môi trường
+    create_cell("markdown", "### ☕ Bước 1: Cài đặt Môi trường"),
+    create_cell("code", f"""# @title ⚙️ 1. Cài đặt Môi trường
 import os
 from google.colab import drive
 if not os.path.exists('/content/drive'):
@@ -449,12 +480,13 @@ if not os.path.exists('/content/drive'):
 
 !pip install -q google-genai openai transformers accelerate pillow tqdm
 
-if not os.path.exists('/content/colab-lora-trainer'):
-    !git clone https://github.com/nguyenducvuong/TranningLoras /content/colab-lora-trainer || cp -r /content/drive/MyDrive/TranningLoras /content/colab-lora-trainer 2>/dev/null || true
+if not os.path.exists('/content/TranningLoras'):
+    !git clone {GITHUB_REPO_URL} /content/TranningLoras
+else:
+    !git -C /content/TranningLoras pull
 
-if os.path.exists('/content/colab-lora-trainer'):
-    %cd /content/colab-lora-trainer
-    !pip install -q -e .
+%cd /content/TranningLoras
+!pip install -q -e .
 
 print("✅ Đã sẵn sàng!")
 """),
@@ -462,7 +494,8 @@ print("✅ Đã sẵn sàng!")
     create_cell("markdown", "### 📂 Bước 2: AI Captioning Studio"),
     create_cell("code", """# @title ✨ 2. Gán nhãn Tự động
 Dataset_Folder = "/content/drive/MyDrive/My_Dataset" # @param {type:'string'}
-Caption_Engine = "Gemini-2.5-Flash" # @param ["Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
+Caption_Engine = "Gemini-2.5-Flash" # @param ["Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Gemini-2.0-Flash", "Gemini-2.0-Flash-Thinking", "Gemini-2.0-Pro-Exp", "Gemini-1.5-Pro", "Gemini-1.5-Flash", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
+Task_Mode = "General" # @param ["General", "Skin_Portrait", "Upscale_Restoration", "Art_Style", "Character_Outfit"]
 Caption_Length = "Medium" # @param ["Short", "Medium", "Long"]
 API_Key = "" # @param {type:'string'}
 Overwrite_Existing = False # @param {type:'boolean'}
@@ -479,6 +512,7 @@ if Caption_Engine.startswith("Gemini"):
         api_key=API_Key,
         model_alias=Caption_Engine,
         length_preset=Caption_Length,
+        task_mode=Task_Mode,
         overwrite=Overwrite_Existing,
         is_video_folder=Is_Video_Dataset,
     )
@@ -517,29 +551,39 @@ save_notebook("notebooks/03_Dataset_Captioning_Tools.ipynb", cells_caption)
 # 4. 04_Toolkit_WebUI_Trainer.ipynb
 # ==============================================================================
 cells_webui = [
-    create_cell("markdown", """# 🌐 AI-Toolkit WebUI Launcher (Cloudflare Tunnel)
-Khởi chạy giao diện WebUI trực quan của Ostris AI-Toolkit thông qua đường truyền an toàn Cloudflare Tunnel trên Google Colab.
+    create_cell("markdown", f"""# 🌐 AI-Toolkit WebUI Launcher (Google Colab Proxy)
+Khởi chạy giao diện WebUI trực quan của Ostris AI-Toolkit thông qua **Google Colab Port Proxy** gốc (an toàn, không cần Cloudflare hay tài khoản bên ngoài).
 """),
 
     create_cell("markdown", "### ☕ Khởi chạy WebUI"),
-    create_cell("code", """# @title 🚀 Launch AI-Toolkit WebUI
+    create_cell("code", f"""# @title 🚀 Launch AI-Toolkit WebUI
 import os
 from google.colab import drive
 if not os.path.exists('/content/drive'):
     drive.mount('/content/drive')
 
-!wget -q -c https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-!dpkg -i cloudflared-linux-amd64.deb
+if not os.path.exists('/content/TranningLoras'):
+    !git clone {GITHUB_REPO_URL} /content/TranningLoras
+else:
+    !git -C /content/TranningLoras pull
+
+%cd /content/TranningLoras
+!pip install -q -e .
 
 if not os.path.exists('/content/ai-toolkit'):
     !git clone --recurse-submodules https://github.com/ostris/ai-toolkit /content/ai-toolkit
+else:
+    !git -C /content/ai-toolkit pull
+    !git -C /content/ai-toolkit submodule update --init --recursive
 
 %cd /content/ai-toolkit
 !pip install -q -r requirements.txt
 !npm --prefix /content/ai-toolkit/ui install
 
-from lora_trainer.utils.colab_utils import launch_cloudflare_tunnel
-launch_cloudflare_tunnel(8675)
+from lora_trainer.utils.colab_utils import launch_colab_proxy
+
+# Tạo link proxy cho cổng 8675
+launch_colab_proxy(8675)
 
 %cd /content/ai-toolkit/ui
 !npm run build_and_start
