@@ -4,7 +4,8 @@ setup(
     name="lora_trainer",
     version="1.0.0",
     description="Universal and Optimized LoRA Training Toolkit for Google Colab (Image & Video)",
-    author="Universal AI Community",
+    author="Nguyen Duc Vuong",
+    license="MIT",
     packages=find_packages(),
     python_requires=">=3.10",
     install_requires=[

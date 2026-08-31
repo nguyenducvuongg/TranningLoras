@@ -1,5 +1,9 @@
 # 🚀 Universal Colab LoRA Trainer (Image & Video)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/)
+
 Bộ công cụ huấn luyện LoRA toàn diện, độc lập và tối ưu hóa hiệu năng cao nhất trên môi trường **Google Colab** (hỗ trợ GPU T4 16GB Free, L4 24GB, A100 40/80GB Pro/Pro+).
 
 Hỗ trợ đầy đủ các kiến trúc Diffusion & Flow-Matching mới nhất cho cả **Hình ảnh** (FLUX 1/2, Qwen-Image, Z-Image Turbo, Krea2) và **Video** (Wan 2.1, Wan 2.2).
@@ -138,3 +142,10 @@ Dành cho mô hình điều kiện (FLUX Kontext, Qwen-Image-Edit, Flux.2 Klein)
 ```bash
 python3 -m unittest tests/test_all.py
 ```
+
+---
+
+## 📄 Giấy Phép Mã Nguồn (License)
+
+Dự án này được phân phối dưới giấy phép **[MIT License](LICENSE)**. Bạn hoàn toàn tự do sử dụng, chỉnh sửa, phân phối và sử dụng cho mục đích cá nhân hoặc thương mại.
+
