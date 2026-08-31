@@ -52,7 +52,7 @@ Bộ công cụ huấn luyện LoRA Hình Ảnh đa năng, tối ưu hóa bộ n
 ---
 ### 📚 Hướng Dẫn Chuẩn Bị Dữ Liệu Cho Từng Dạng LoRA:
 1. **LoRA Nhân vật / Concept / Phong cách (Standard LoRA)**:
-   - Đặt toàn bộ ảnh và file `.txt` caption vào một thư mục (VD: `/content/drive/MyDrive/LoRA_Data/20_cyberpunk_girl`).
+   - Đặt toàn bộ ảnh và file `.txt` caption vào một thư mục (VD: `/content/drive/MyDrive/TranningLorasData/20_model_girl`).
    - Có thể đặt tên thư mục theo cú pháp `{{repeats}}_{{tên}}` để tự nhận số lần lặp.
 2. **LoRA Xử lý Da / Retouch / Phục hồi / Upscale (Paired Control LoRA)**:
    - Chuẩn bị 2 thư mục:
@@ -180,6 +180,7 @@ Save_Every_N_Epochs = 2 # @param {type:'integer'}
 Sample_Every_N_Steps = 200 # @param {type:'integer'}
 Sample_Prompt = "" # @param {type:'string'}
 
+# @markdown 📊 **WandB (Tùy chọn)**: Bỏ trống nếu không dùng (Hệ thống vẫn in log đầy đủ ra màn hình).
 WandB_API_Key = "" # @param {type:'string'}
 Auto_Disconnect = False # @param {type:'boolean'}
 
@@ -192,6 +193,7 @@ from lora_trainer.engine.musubi_runner import run_musubi_pipeline
 from lora_trainer.engine.toolkit_runner import run_toolkit_pipeline
 from lora_trainer.data.dataset_builder import build_dataset_list
 from lora_trainer.utils.sampler import get_random_sample_prompt
+from lora_trainer.utils.converter import auto_convert_checkpoints
 from lora_trainer.utils.colab_utils import auto_disconnect
 
 res_list = [int(x.strip()) for x in Resolution.split(",") if x.strip()]
@@ -282,18 +284,28 @@ else:
     )
     run_toolkit_pipeline(config_yaml_path=yaml_path, toolkit_dir="/content/ai-toolkit")
 
+# ⚡ TỰ ĐỘNG NHẬN DIỆN VÀ CHUYỂN ĐỔI SANG COMFYUI NẾU MÔ HÌNH YÊU CẦU (Ví dụ Z-Image)
+auto_convert_checkpoints(Output_Directory, Model_Type)
+
 if Auto_Disconnect:
     auto_disconnect(delay_seconds=120, enabled=True)
 """),
 
-    create_cell("markdown", "### 🛠️ Bước 4: Chuyển đổi LoRA sang định dạng ComfyUI (Nếu cần)"),
-    create_cell("code", """# @title 🔄 Convert Z-LoRA to ComfyUI
-Input_LoRA = "" # @param {type:'string'}
-Output_LoRA = "" # @param {type:'string'}
+    create_cell("markdown", """### 🛠️ Bước 4: Công Cụ Chuyển Đổi Thủ Công LoRA Sang ComfyUI (Tùy Chọn)
+💡 **Lưu ý**: Hệ thống ở Bước 3 đã **tự động phát hiện và chuyển đổi** các file LoRA (như Z-Image) sang định dạng ComfyUI trong thư mục `ComfyUI_Ready`.
+Nếu bạn muốn tự chuyển đổi thủ công một file bất kỳ:
+- **`Input_LoRA`**: Đường dẫn file `.safetensors` gốc sau khi train (ví dụ: `/content/drive/MyDrive/LoRA_Outputs/my_awesome_lora-000010.safetensors`).
+- **`Output_LoRA`**: Đường dẫn file `.safetensors` mới sẵn sàng cho ComfyUI (ví dụ: `/content/drive/MyDrive/LoRA_Outputs/comfy_my_awesome_lora-000010.safetensors`).
+"""),
+    create_cell("code", """# @title 🔄 Convert Z-LoRA to ComfyUI (Manual Tool)
+Input_LoRA = "/content/drive/MyDrive/LoRA_Outputs/my_awesome_lora-000010.safetensors" # @param {type:'string'}
+Output_LoRA = "/content/drive/MyDrive/LoRA_Outputs/comfy_my_awesome_lora.safetensors" # @param {type:'string'}
 
 from lora_trainer.utils.converter import convert_z_lora_to_comfyui
-if Input_LoRA and Output_LoRA:
+if Input_LoRA and Output_LoRA and os.path.exists(Input_LoRA):
     convert_z_lora_to_comfyui(Input_LoRA, Output_LoRA)
+else:
+    print("⚠️ Vui lòng kiểm tra lại đường dẫn file Input_LoRA!")
 """)
 ]
 

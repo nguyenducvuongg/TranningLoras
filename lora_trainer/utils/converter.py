@@ -1,10 +1,12 @@
 """
 LoRA Format Converter
 Chuyển đổi các định dạng LoRA đặc thù (Z-LoRA, Diffusers) sang định dạng tương thích trực tiếp với ComfyUI & WebUI.
+Tự động nhận diện và chuyển đổi hàng loạt toàn bộ checkpoint sau khi train xong.
 """
 
 import os
-from typing import Optional
+from typing import Optional, List
+from ..config.model_registry import get_model_info
 
 
 def convert_z_lora_to_comfyui(input_lora_path: str, output_lora_path: str) -> bool:
@@ -61,3 +63,47 @@ def convert_diffusers_to_safetensors(input_path: str, output_path: str) -> bool:
     save_file(state_dict, output_path)
     print(f"✅ Đã lưu file safetensors tại: {output_path}")
     return True
+
+
+def auto_convert_checkpoints(output_dir: str, model_name: str) -> List[str]:
+    """
+    Tự động nhận diện mô hình và chuyển đổi toàn bộ checkpoint trong output_dir
+    sang định dạng ComfyUI tương thích nếu mô hình yêu cầu (như Z-Image).
+    """
+    if not os.path.exists(output_dir):
+        return []
+
+    try:
+        info = get_model_info(model_name)
+    except Exception:
+        info = {}
+
+    arch = info.get("arch", "")
+    converted_files = []
+
+    # Kiểm tra nếu là dòng Z-Image cần chuyển đổi key sang ComfyUI
+    if "z_image" in arch or "z-image" in model_name.lower():
+        comfy_dir = os.path.join(output_dir, "ComfyUI_Ready")
+        os.makedirs(comfy_dir, exist_ok=True)
+        
+        print(f"\n⚡ [Tự Động Kích Hoạt] Nhận diện mô hình Z-Image -> Bắt đầu tự động chuyển đổi sang chuẩn ComfyUI...")
+
+        for root, _, files in os.walk(output_dir):
+            # Tránh quét lại thư mục con ComfyUI_Ready
+            if "ComfyUI_Ready" in root:
+                continue
+            for file in files:
+                if file.endswith(".safetensors") and not file.startswith("comfy_"):
+                    src_file = os.path.join(root, file)
+                    dest_file = os.path.join(comfy_dir, f"comfy_{file}")
+                    try:
+                        convert_z_lora_to_comfyui(src_file, dest_file)
+                        converted_files.append(dest_file)
+                    except Exception as e:
+                        print(f"⚠️ Không thể tự động convert {file}: {e}")
+
+        if converted_files:
+            print(f"\n🎉 [HOÀN TẤT AUTO-CONVERT] Đã chuyển đổi {len(converted_files)} checkpoint sang thư mục:")
+            print(f"📂 {comfy_dir}\n")
+
+    return converted_files
