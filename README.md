@@ -2,7 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Google Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/)
+[![Train Image LoRA on Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/01_Universal_Image_LoRA_Trainer.ipynb)
+[![Train Video LoRA on Colab](https://img.shields.io/badge/Colab-Train%20Video%20LoRA-orange?logo=googlecolab)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/02_Universal_Video_LoRA_Trainer.ipynb)
 
 Bộ công cụ huấn luyện LoRA toàn diện, độc lập và tối ưu hóa hiệu năng cao nhất trên môi trường **Google Colab** (hỗ trợ GPU T4 16GB Free, L4 24GB, A100 40/80GB Pro/Pro+).
 
@@ -128,12 +129,12 @@ Dành cho mô hình điều kiện (FLUX Kontext, Qwen-Image-Edit, Flux.2 Klein)
 
 ## 💻 Danh Sách Colab Notebooks
 
-| Notebook | Mục đích |
-| :--- | :--- |
-| [01_Universal_Image_LoRA_Trainer.ipynb](notebooks/01_Universal_Image_LoRA_Trainer.ipynb) | Huấn luyện LoRA Hình Ảnh (FLUX.1, FLUX.2 Klein, Qwen, Z-Image, Krea) |
-| [02_Universal_Video_LoRA_Trainer.ipynb](notebooks/02_Universal_Video_LoRA_Trainer.ipynb) | Huấn luyện LoRA Video (Wan 2.1 & Wan 2.2 T2V/I2V) |
-| [03_Dataset_Captioning_Tools.ipynb](notebooks/03_Dataset_Captioning_Tools.ipynb) | Studio xử lý dataset, dọn dẹp và AI Captioning chuyên sâu |
-| [04_Toolkit_WebUI_Trainer.ipynb](notebooks/04_Toolkit_WebUI_Trainer.ipynb) | Khởi chạy AI-Toolkit WebUI qua Colab Port Proxy |
+| Notebook | Mục đích | Mở Trực Tiếp Trên Colab (1 Click) |
+| :--- | :--- | :---: |
+| [01_Universal_Image_LoRA_Trainer.ipynb](notebooks/01_Universal_Image_LoRA_Trainer.ipynb) | Huấn luyện LoRA Hình Ảnh (FLUX.1, FLUX.2 Klein, Qwen, Z-Image, Krea) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/01_Universal_Image_LoRA_Trainer.ipynb) |
+| [02_Universal_Video_LoRA_Trainer.ipynb](notebooks/02_Universal_Video_LoRA_Trainer.ipynb) | Huấn luyện LoRA Video (Wan 2.1 & Wan 2.2 T2V/I2V) | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/02_Universal_Video_LoRA_Trainer.ipynb) |
+| [03_Dataset_Captioning_Tools.ipynb](notebooks/03_Dataset_Captioning_Tools.ipynb) | Studio xử lý dataset, dọn dẹp và AI Captioning chuyên sâu | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/03_Dataset_Captioning_Tools.ipynb) |
+| [04_Toolkit_WebUI_Trainer.ipynb](notebooks/04_Toolkit_WebUI_Trainer.ipynb) | Khởi chạy AI-Toolkit WebUI qua Colab Port Proxy | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/04_Toolkit_WebUI_Trainer.ipynb) |
 
 ---
 
