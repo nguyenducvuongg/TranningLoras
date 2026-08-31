@@ -1,0 +1,18 @@
+# Fast installation script for Google Colab environments
+toml
+oyaml
+pyyaml
+python-dotenv
+bitsandbytes
+optimum-quanto
+google-genai
+openai
+av
+opencv-python-headless
+lycoris-lora
+k-diffusion
+open_clip_torch
+controlnet_aux
+huggingface_hub
+accelerate
+safetensors

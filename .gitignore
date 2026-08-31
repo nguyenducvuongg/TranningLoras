@@ -1,0 +1,51 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+
+# Google Colab & Jupyter Notebooks checkpoint
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# macOS system files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Models and Cache (Large files)
+models/
+cache/
+*.safetensors
+*.pth
+*.bin
+*.ckpt
+*.pt
+*.onnx
+
+# Reference subfolders (if not intended to be tracked)
+# SDVN-musubi-tuner-colab/
+# SDVN-training-colab-flux/

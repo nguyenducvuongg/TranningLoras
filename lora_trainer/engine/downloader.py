@@ -1,0 +1,158 @@
+"""
+High-Speed Model Downloader
+Tải xuống các trọng số mô hình (DiT, VAE, Text Encoders) siêu tốc với Aria2c hoặc HuggingFace Hub.
+"""
+
+import os
+import shutil
+import subprocess
+from typing import Dict, Any, List, Optional
+import requests
+from tqdm import tqdm
+from ..config.model_registry import get_model_info, VAE_REGISTRY, TEXT_ENCODER_REGISTRY
+
+
+def is_aria2_available() -> bool:
+    """Kiểm tra aria2c có sẵn trong hệ thống hay không."""
+    return shutil.which("aria2c") is not None
+
+
+def aria2_download(
+    url: str,
+    destination_dir: str,
+    filename: Optional[str] = None,
+    overwrite: bool = False,
+) -> str:
+    """Tải file qua aria2c với 16 luồng song song."""
+    os.makedirs(destination_dir, exist_ok=True)
+    if not filename:
+        filename = url.split("/")[-1].split("?")[0]
+
+    dest_path = os.path.join(destination_dir, filename)
+    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0 and not overwrite:
+        print(f"✔️ Đã có sẵn file: {filename}")
+        return dest_path
+
+    if is_aria2_available():
+        cmd = [
+            "aria2c",
+            "--console-log-level=error",
+            "-c",
+            "-x", "16",
+            "-s", "16",
+            "-k", "1M",
+            "-j", "4",
+            "-d", destination_dir,
+            "-o", filename,
+            url,
+        ]
+        res = subprocess.run(cmd)
+        if res.returncode == 0:
+            return dest_path
+
+    # Fallback to requests streaming download
+    return download_file_requests(url, dest_path)
+
+
+def download_file_requests(url: str, destination_path: str) -> str:
+    """Tải file bằng thư viện requests có hiển thị tiến trình tqdm."""
+    os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+    response = requests.get(url, stream=True, allow_redirects=True)
+    response.raise_for_status()
+
+    total_size = int(response.headers.get("content-length", 0))
+    desc = os.path.basename(destination_path)
+
+    with open(destination_path, "wb") as f, tqdm(
+        desc=desc,
+        total=total_size,
+        unit="iB",
+        unit_scale=True,
+        unit_divisor=1024,
+    ) as pbar:
+        for data in response.iter_content(chunk_size=1024 * 1024):
+            size = f.write(data)
+            pbar.update(size)
+
+    return destination_path
+
+
+def download_file(url: str, destination_path: str, overwrite: bool = False) -> str:
+    """Tải file đơn lẻ đến đích cụ thể."""
+    if os.path.exists(destination_path) and os.path.getsize(destination_path) > 0 and not overwrite:
+        return destination_path
+
+    dest_dir = os.path.dirname(destination_path)
+    filename = os.path.basename(destination_path)
+    return aria2_download(url, dest_dir, filename, overwrite)
+
+
+def download_model_suite(
+    model_name: str, weights_dir: str = "/content/models"
+) -> Dict[str, str]:
+    """
+    Tải toàn bộ bộ trọng số cần thiết (Model, VAE, Text Encoder) cho model đã chọn.
+    Trả về dictionary chứa đường dẫn local của từng thành phần.
+    """
+    os.makedirs(weights_dir, exist_ok=True)
+    info = get_model_info(model_name)
+    downloaded_paths = {}
+
+    print(f"\n=======================================================")
+    print(f"📦 BẮT ĐẦU TẢI TRỌNG SỐ CHO: {model_name}")
+    print(f"=======================================================\n")
+
+    # 1. Tải Base DiT Model nếu có download_url
+    if "download_url" in info and info["download_url"]:
+        url = info["download_url"]
+        fname = f"{info['arch']}_{model_name.replace(' ', '_')}.safetensors"
+        dest = os.path.join(weights_dir, fname)
+        print(f"🚀 Đang tải Base DiT Model...")
+        downloaded_paths["dit"] = download_file(url, dest)
+
+    # 2. Tải VAE
+    if "vae" in info and info["vae"] in VAE_REGISTRY:
+        vae_key = info["vae"]
+        url = VAE_REGISTRY[vae_key]
+        ext = ".pth" if "pth" in url else ".safetensors"
+        dest = os.path.join(weights_dir, f"{vae_key}{ext}")
+        print(f"🚀 Đang tải VAE ({vae_key})...")
+        downloaded_paths["vae"] = download_file(url, dest)
+
+    # 3. Tải Text Encoder 1
+    if "clip" in info and info["clip"] in TEXT_ENCODER_REGISTRY:
+        te_key = info["clip"]
+        url = TEXT_ENCODER_REGISTRY[te_key]
+        ext = ".pth" if "pth" in url else ".safetensors"
+        dest = os.path.join(weights_dir, f"{te_key}{ext}")
+        print(f"🚀 Đang tải Text Encoder 1 ({te_key})...")
+        downloaded_paths["text_encoder1"] = download_file(url, dest)
+
+    # 4. Tải Text Encoder 2 (nếu có)
+    if "clip2" in info and info["clip2"] in TEXT_ENCODER_REGISTRY:
+        te2_key = info["clip2"]
+        url = TEXT_ENCODER_REGISTRY[te2_key]
+        ext = ".pth" if "pth" in url else ".safetensors"
+        dest = os.path.join(weights_dir, f"{te2_key}{ext}")
+        print(f"🚀 Đang tải Text Encoder 2 ({te2_key})...")
+        downloaded_paths["text_encoder2"] = download_file(url, dest)
+
+    # 5. Tải Clip Vision (cho I2V)
+    if "clip_vision" in info and info["clip_vision"] in TEXT_ENCODER_REGISTRY:
+        cv_key = info["clip_vision"]
+        url = TEXT_ENCODER_REGISTRY[cv_key]
+        ext = ".pth" if "pth" in url else ".safetensors"
+        dest = os.path.join(weights_dir, f"{cv_key}{ext}")
+        print(f"🚀 Đang tải Clip Vision ({cv_key})...")
+        downloaded_paths["clip_vision"] = download_file(url, dest)
+
+    # 6. Tải Adapter (cho Z-Image Turbo / De-Turbo)
+    if "adapter" in info and info["adapter"] in TEXT_ENCODER_REGISTRY:
+        ad_key = info["adapter"]
+        url = TEXT_ENCODER_REGISTRY[ad_key]
+        dest = os.path.join(weights_dir, f"{ad_key}.safetensors")
+        print(f"🚀 Đang tải Training Adapter ({ad_key})...")
+        downloaded_paths["adapter"] = download_file(url, dest)
+
+    print("\n✅ Hoàn tất tải toàn bộ trọng số!")
+    return downloaded_paths
