@@ -180,7 +180,8 @@ Save_Every_N_Epochs = 2 # @param {type:'integer'}
 Sample_Every_N_Steps = 200 # @param {type:'integer'}
 Sample_Prompt = "" # @param {type:'string'}
 
-# @markdown 📊 **WandB (Tùy chọn)**: Bỏ trống nếu không dùng (Hệ thống vẫn in log đầy đủ ra màn hình).
+# @markdown 📊 **Tùy chọn Bổ sung (Token / WandB)**:
+HF_Token = "" # @param {type:'string'}
 WandB_API_Key = "" # @param {type:'string'}
 Auto_Disconnect = False # @param {type:'boolean'}
 
@@ -204,8 +205,8 @@ datasets = build_dataset_list(Train_Folders, Control_Folder)
 engine_type = get_preferred_engine(Model_Type)
 print(f"🎯 Mô hình: {Model_Type} | Engine tối ưu: {engine_type.upper()}")
 
-# Tải trước các trọng số cần thiết
-weights = download_model_suite(Model_Type, weights_dir="/content/models")
+# Tải trước các trọng số cần thiết (tự động hỗ trợ HF Token hoặc Mirror công khai)
+weights = download_model_suite(Model_Type, weights_dir="/content/models", hf_token=HF_Token)
 
 if engine_type == "musubi":
     builder = MusubiConfigBuilder(
@@ -395,8 +396,9 @@ Save_Every_N_Epochs = 1 # @param {type:'integer'}
 Timestep_Sampling = "shift" # @param ["shift", "sigma", "uniform", "sigmoid", "logsnr"]
 Timestep_Boundary = 875 # @param {"type":"slider","min":0,"max":1000,"step":5}
 Sample_Prompt = "" # @param {type:'string'}
-Sample_Every_N_Steps = 200 # @param {type:'integer'}
-
+# @markdown 📊 **Tùy chọn Bổ sung (Token / WandB)**:
+HF_Token = "" # @param {type:'string'}
+WandB_API_Key = "" # @param {type:'string'}
 Auto_Disconnect = False # @param {type:'boolean'}
 
 import os
@@ -408,7 +410,7 @@ from lora_trainer.utils.colab_utils import auto_disconnect
 res = [int(x.strip()) for x in Resolution.split(",")]
 tf = [int(x.strip()) for x in Target_Frames.split(",")]
 
-weights = download_model_suite(Model_Type, weights_dir="/content/models")
+weights = download_model_suite(Model_Type, weights_dir="/content/models", hf_token=HF_Token)
 
 builder = MusubiConfigBuilder(
     model_name=Model_Type,
