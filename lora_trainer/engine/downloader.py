@@ -4,9 +4,13 @@ Tải xuống các trọng số mô hình (DiT, VAE, Text Encoders) siêu tốc 
 """
 
 import os
+import re
 import shutil
 import subprocess
+import time
+import posixpath
 from typing import Dict, Any, List, Optional
+from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 import requests
 from tqdm import tqdm
 from ..config.model_registry import (
@@ -17,11 +21,6 @@ from ..config.model_registry import (
     TEXT_ENCODER_FALLBACKS,
 )
 from ..caption.key_manager import get_api_key
-
-
-import time
-import posixpath
-from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 
 
 def parse_aria2_size(size_str: str) -> int:

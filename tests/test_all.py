@@ -317,5 +317,26 @@ class TestEnvironmentSetup(unittest.TestCase):
         self.assertEqual(os.environ.get("PYTORCH_CUDA_ALLOC_CONF"), "expandable_segments:True")
 
 
+class TestDownloader(unittest.TestCase):
+    def test_aria2_progress_parser(self):
+        from lora_trainer.engine.downloader import parse_aria2_progress, parse_aria2_size, prepare_download_url
+
+        self.assertEqual(parse_aria2_size("16.2GiB"), int(16.2 * 1024**3))
+        self.assertEqual(parse_aria2_size("320MiB"), int(320 * 1024**2))
+        self.assertEqual(parse_aria2_size("500KiB"), int(500 * 1024))
+
+        sample_line = "[#20982e 3.00GiB/9.12GiB(33%) CN:4 DL:183MiB ETA:35s]"
+        res = parse_aria2_progress(sample_line)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["percent"], 33)
+        self.assertEqual(res["downloaded_bytes"], int(3.0 * 1024**3))
+        self.assertEqual(res["total_bytes"], int(9.12 * 1024**3))
+        self.assertEqual(res["speed"], "183MiB")
+
+        hf_url = "https://huggingface.co/User/Repo/blob/main/model.safetensors"
+        converted = prepare_download_url(hf_url)
+        self.assertIn("/resolve/main/", converted)
+
+
 if __name__ == "__main__":
     unittest.main()

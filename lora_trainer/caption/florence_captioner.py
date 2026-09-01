@@ -9,6 +9,11 @@ from PIL import Image
 from tqdm import tqdm
 from ..data.cleaner import get_supported_images
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 _FLORENCE_MODEL = None
 _FLORENCE_PROCESSOR = None
 
