@@ -181,6 +181,10 @@ for folder in folder_list:
 - **LoRA Phong cách (Art Style)**: Chọn `FLUX.2-klein-base-9B` hoặc `Z-Image-Turbo`, không nhập Control_Folder, đặt LR = 1e-4, Dim = 32.
 """),
     create_cell("code", """# @title 🛠️ 3. Thiết lập Tham số & Bắt đầu Huấn luyện
+# @markdown 📂 **Thư mục Dữ liệu**:
+Train_Folders = "/content/drive/MyDrive/LoRA_Data/MyConcept" # @param {type:'string'}
+Control_Folder = "" # @param {type:'string'}
+
 Model_Type = "FLUX.2-klein-base-9B" # @param ["FLUX.2-klein-base-9B", "FLUX.2-klein-base-4B", "Qwen-Image", "Qwen-Image-Edit", "Qwen-Image-Edit-2509", "Qwen-Image-Edit-2511", "Z-Image-Turbo", "Z-Image-Base", "Z-Image-De-Turbo", "FLUX.1-Kontext-dev", "FLUX.1-dev", "FLUX.1-schnell", "Krea2-Raw"]
 
 Output_Directory = "/content/drive/MyDrive/LoRA_Outputs" # @param {type:'string'}
@@ -404,6 +408,14 @@ for v_dir in [d.strip() for d in Video_Folders.split(",") if d.strip()]:
 
     create_cell("markdown", "### 🚀 Bước 3: Cấu hình Wan & Bắt đầu Huấn luyện"),
     create_cell("code", """# @title 🛠️ 3. Cấu hình Wan 2.1 / Wan 2.2 & Bắt đầu Huấn luyện
+# @markdown 📂 **Thư mục Dữ liệu Video**:
+Video_Folders = "/content/drive/MyDrive/LoRA_Video_Data" # @param {type:'string'}
+Frame_Extraction = "chunk" # @param ["chunk", "slide", "uniform", "head", "full"]
+Target_Frames = "25" # @param {type:'string'}
+Frame_Stride = 1 # @param {type:'integer'}
+Frame_Sample = 1 # @param {type:'integer'}
+Max_Frames = 33 # @param {type:'integer'}
+
 Model_Type = "Wan2.2-T2V-14B" # @param ["Wan2.1-T2V-14B", "Wan2.1-I2V-14B-720P", "Wan2.1-I2V-14B-480P", "Wan2.1-T2V-1.3B", "Wan2.2-T2V-14B", "Wan2.2-I2V-14B"]
 
 Output_Directory = "/content/drive/MyDrive/LoRA_Video_Outputs" # @param {type:'string'}
