@@ -143,6 +143,8 @@ def download_file(
         return destination_path
 
     dest_dir = os.path.dirname(destination_path)
+    if dest_dir:
+        os.makedirs(dest_dir, exist_ok=True)
     filename = os.path.basename(destination_path)
     try:
         return aria2_download(url, dest_dir, filename, overwrite, token=token)
