@@ -129,7 +129,14 @@ def get_model_component_paths(
     # 1. Base Model / DiT / UNet
     dit_url = info.get("download_url") or custom_url
     if dit_url:
-        fname = dit_url.split("/")[-1].split("?")[0]
+        raw_fname = dit_url.split("/")[-1].split("?")[0]
+        valid_exts = [".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".onnx", ".gguf"]
+        if any(raw_fname.lower().endswith(ext) for ext in valid_exts):
+            fname = raw_fname
+        else:
+            clean_name = model_name.replace(" ", "_").replace("/", "_").replace(":", "_")
+            fname = f"{clean_name}.safetensors"
+
         sub = get_component_target_subfolder(info.get("arch", "dit"))
         drive_path = os.path.join(base_dir, "models", sub, fname)
         local_path = os.path.join(local_dir, fname)

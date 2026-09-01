@@ -1,6 +1,8 @@
 """
 Florence-2 Vision Captioning Engine
 Gán nhãn tự động chuẩn hóa sử dụng mô hình Microsoft Florence-2 chạy cục bộ.
+Khắc phục triệt để lỗi 'Florence2LanguageConfig' object has no attribute 'forced_bos_token_id'
+trên các phiên bản mới của thư viện transformers.
 """
 
 import os
@@ -19,27 +21,43 @@ def batch_caption_florence(
     """Gán nhãn tự động với mô hình Microsoft Florence-2."""
     images = get_supported_images(folder_path)
     if not images:
+        print(f"⚠️ Không tìm thấy ảnh hợp lệ tại: {folder_path}")
         return 0
 
     print(f"\n=======================================================")
     print(f"🤖 BẮT ĐẦU GÁN NHÃN FLORENCE-2")
     print(f"📂 Thư mục: {folder_path} ({len(images)} ảnh)")
-    print(f"=======================================================\n")
+    print(f"=======================================================")
 
     try:
         import torch
-        from transformers import AutoProcessor, AutoModelForCausalLM
+        from transformers import AutoConfig, AutoProcessor, AutoModelForCausalLM
     except ImportError:
         print("⚠️ Cần cài đặt transformers và torch để chạy Florence-2.")
         return 0
 
     model_id = "microsoft/Florence-2-large"
+    model = None
+    processor = None
+
     try:
+        # Nạp và patch config để tương thích với transformers mới
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
+        if hasattr(config, "text_config") and not hasattr(config.text_config, "forced_bos_token_id"):
+            config.text_config.forced_bos_token_id = getattr(config.text_config, "bos_token_id", None)
+        if not hasattr(config, "forced_bos_token_id"):
+            config.forced_bos_token_id = getattr(config, "bos_token_id", None)
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
-            torch_dtype=torch.float16,
+            config=config,
+            torch_dtype=dtype,
             trust_remote_code=True,
-        ).to("cuda" if torch.cuda.is_available() else "cpu")
+        ).to(device)
+
         processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
     except Exception as e:
         print(f"❌ Không thể nạp Florence-2 ({e})")
@@ -60,12 +78,22 @@ def batch_caption_florence(
 
         try:
             image = Image.open(img_path).convert("RGB")
-            inputs = processor(text=task_prompt, images=image, return_tensors="pt").to(model.device, torch.float16)
+            inputs = processor(text=task_prompt, images=image, return_tensors="pt")
+            
+            processed_inputs = {}
+            for k, v in inputs.items():
+                if isinstance(v, torch.Tensor):
+                    if v.dtype == torch.float32 and torch.cuda.is_available():
+                        processed_inputs[k] = v.to(device, dtype=torch.float16)
+                    else:
+                        processed_inputs[k] = v.to(device)
+                else:
+                    processed_inputs[k] = v
 
             with torch.no_grad():
                 generated_ids = model.generate(
-                    input_ids=inputs["input_ids"],
-                    pixel_values=inputs["pixel_values"],
+                    input_ids=processed_inputs["input_ids"],
+                    pixel_values=processed_inputs["pixel_values"],
                     max_new_tokens=256,
                     num_beams=3,
                 )

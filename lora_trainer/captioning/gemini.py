@@ -1,7 +1,7 @@
 """
 Gemini Vision Captioning Engine
 Gán nhãn tự động cho toàn bộ tập dataset sử dụng các mô hình Google Gemini 3.5, 3.6, 3.7 Flash & Pro
-thông qua thư viện chính thức google-genai hoặc REST API.
+thông qua thư viện chính thức google-genai hoặc REST API kèm cơ chế fallback tự động.
 """
 
 import os
@@ -14,12 +14,15 @@ from ..dataset.cleaner import get_supported_images
 from .base_captioner import build_task_prompt
 
 GEMINI_MODEL_MAP = {
-    "Gemini-3.7-Flash": "gemini-2.5-flash",
-    "Gemini-3.6-Flash": "gemini-2.5-flash",
-    "Gemini-3.5-Flash": "gemini-2.5-flash",
-    "Gemini-3.5-Flash-Lite": "gemini-2.5-flash-lite",
-    "Gemini-3.1-Pro": "gemini-2.5-pro",
-    "Gemini-3-Pro": "gemini-2.5-pro",
+    "Gemini-3.7-Flash": "gemini-2.0-flash",
+    "Gemini-3.6-Flash": "gemini-2.0-flash",
+    "Gemini-3.5-Flash": "gemini-2.0-flash",
+    "Gemini-3.5-Flash-Lite": "gemini-2.0-flash-lite",
+    "Gemini-3.1-Pro": "gemini-1.5-pro",
+    "Gemini-3-Pro": "gemini-1.5-pro",
+    "Gemini-2.0-Flash": "gemini-2.0-flash",
+    "Gemini-1.5-Flash": "gemini-1.5-flash",
+    "Gemini-1.5-Pro": "gemini-1.5-pro",
 }
 
 
@@ -28,19 +31,35 @@ def caption_single_image_gemini(
     client: Any,
     model_name: str,
     prompt: str,
+    max_retries: int = 3,
 ) -> str:
-    """Gửi một ảnh đến Gemini API để nhận caption."""
+    """Gửi một ảnh đến Gemini API để nhận caption kèm cơ chế retry và fallback model."""
+    models_to_try = list(dict.fromkeys([model_name, "gemini-2.0-flash", "gemini-1.5-flash"]))
+
     try:
-        from google.genai import types
         img = Image.open(image_path)
-        response = client.models.generate_content(
-            model=model_name,
-            contents=[img, prompt],
-        )
-        if response and response.text:
-            return response.text.strip().replace("\n", " ")
     except Exception as e:
-        print(f"⚠️ Lỗi khi caption {os.path.basename(image_path)}: {e}")
+        print(f"⚠️ Không thể mở ảnh {os.path.basename(image_path)}: {e}")
+        return ""
+
+    for m in models_to_try:
+        for attempt in range(max_retries):
+            try:
+                response = client.models.generate_content(
+                    model=m,
+                    contents=[img, prompt],
+                )
+                if response and response.text:
+                    return response.text.strip().replace("\n", " ")
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    time.sleep(2 * (attempt + 1))
+                elif "404" in err_str or "NOT_FOUND" in err_str:
+                    break  # Thử model tiếp theo
+                else:
+                    time.sleep(1)
+
     return ""
 
 
@@ -77,7 +96,7 @@ def batch_caption_gemini(
         from google import genai
         client = genai.Client(api_key=effective_key)
 
-    actual_model = GEMINI_MODEL_MAP.get(model_alias, "gemini-2.5-flash")
+    actual_model = GEMINI_MODEL_MAP.get(model_alias, "gemini-2.0-flash")
     prompt = build_task_prompt(task_mode, caption_length, trigger_word)
 
     print(f"\n=======================================================")
@@ -102,7 +121,7 @@ def batch_caption_gemini(
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(caption)
             count += 1
-            time.sleep(0.5) # Tránh vượt Rate Limit
+            time.sleep(0.3)  # Tránh vượt Rate Limit
 
     print(f"\n🎉 Đã hoàn tất gán nhãn {count} ảnh với Gemini tại: {folder_path}\n")
     return count
