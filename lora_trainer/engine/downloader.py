@@ -20,6 +20,8 @@ from ..caption.key_manager import get_api_key
 
 
 import time
+import posixpath
+from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 
 
 def is_aria2_available() -> bool:
@@ -34,7 +36,7 @@ def ensure_aria2_installed() -> bool:
     if shutil.which("apt-get"):
         try:
             print("📦 Đang tự động cài đặt aria2 siêu tốc cho Colab...")
-            subprocess.run(["apt-get", "install", "-y", "-qq", "aria2"], check=False)
+            subprocess.run("apt-get update -qq && apt-get install -y -qq aria2", shell=True, check=False)
             return is_aria2_available()
         except Exception:
             pass
@@ -46,77 +48,134 @@ def get_hf_token() -> Optional[str]:
     return get_api_key("huggingface") or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
 
 
+def get_civitai_key() -> Optional[str]:
+    """Lấy Civitai API Key từ key manager hoặc biến môi trường."""
+    return get_api_key("civitai") or os.environ.get("CIVITAI_API_KEY")
+
+
+def prepare_download_url(url: str, token: Optional[str] = None, civitai_key: Optional[str] = None) -> str:
+    """
+    Chuẩn hóa và tối ưu hóa URL tải:
+    - Chuyển đổi blob sang resolve cho Hugging Face.
+    - Nhúng Civitai API Token vào URL download của Civitai.
+    """
+    url = url.strip()
+    if "huggingface.co" in url and "/blob/main/" in url:
+        url = url.replace("/blob/main/", "/resolve/main/")
+
+    active_civitai = civitai_key or get_civitai_key()
+    if "civitai.com/api/download/models" in url and active_civitai:
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        query_params["token"] = [active_civitai.strip()]
+        url = urlunparse(parsed_url._replace(query=urlencode(query_params, doseq=True)))
+
+    return url
+
+
 def aria2_download(
     url: str,
     destination_dir: str,
     filename: Optional[str] = None,
     overwrite: bool = False,
     token: Optional[str] = None,
+    civitai_key: Optional[str] = None,
 ) -> str:
-    """Tải file qua aria2c với 16 luồng song song, tối ưu I/O, tự nối tiếp (resume) và tự động fallback."""
+    """
+    Tải file mô hình trực tiếp vào Google Drive bằng aria2c:
+    - Kế thừa 100% logic ComfyUI_Model_Downloader.
+    - Đa luồng siêu tốc với --file-allocation=none (tương thích tuyệt đối với Google Drive FUSE).
+    - Tự động resume / nối tiếp khi mạng chập chờn với vòng lặp thử lại thông minh (max 8 lần).
+    - Hiển thị thanh tiến trình và ETA trực tiếp trên console.
+    """
     os.makedirs(destination_dir, exist_ok=True)
+    url = prepare_download_url(url, token=token, civitai_key=civitai_key)
+
     if not filename:
-        filename = url.split("/")[-1].split("?")[0]
+        parsed_path = urlparse(url.split("?")[0]).path
+        basename = posixpath.basename(parsed_path)
+        valid_exts = ["safetensors", "ckpt", "pt", "pth", "bin", "onnx", "yaml", "json", "gguf"]
+        if "." in basename and basename.split(".")[-1].lower() in valid_exts:
+            filename = basename
+        else:
+            filename = url.split("/")[-1].split("?")[0]
 
     dest_path = os.path.join(destination_dir, filename)
-    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0 and not overwrite:
+    aria2_control_file = dest_path + ".aria2"
+
+    # Kiểm tra nếu file đã có sẵn hoàn chỉnh và không có file tạm dở dang (.aria2)
+    if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0 and not os.path.exists(aria2_control_file) and not overwrite:
         print(f"✔️ Đã có sẵn file: {filename}")
         return dest_path
 
     effective_token = token if token is not None else get_hf_token()
 
     if ensure_aria2_installed():
-        cmd = [
-            "aria2c",
-            "--console-log-level=error",
-            "-c",
-            "-x", "16",
-            "-s", "16",
-            "-k", "1M",
-            "-j", "8",
-            "--max-tries=10",
-            "--retry-wait=3",
-            "--timeout=60",
-            "--connect-timeout=30",
-            "--file-allocation=none",
-            "--disk-cache=64M",
-            "--optimize-concurrent-downloads=true",
-            "--summary-interval=5",
-            "-d", destination_dir,
-            "-o", filename,
-        ]
-        if effective_token and ("huggingface.co" in url or "hf.co" in url):
-            cmd.append(f"--header=Authorization: Bearer {effective_token.strip()}")
-        cmd.append(url)
-        res = subprocess.run(cmd)
-        if res.returncode == 0:
-            return dest_path
-
-        # Nếu lỗi và có token, thử lại aria2c không dùng token (cho public repos)
-        if effective_token:
-            cmd_no_token = [
+        # Cấu hình lệnh aria2c tối ưu hóa đặc thù cho Google Drive FUSE
+        if "huggingface.co" in url or "hf.co" in url:
+            aria2_cmd = [
                 "aria2c",
                 "--console-log-level=error",
+                "--summary-interval=1",
+                "--file-allocation=none",
+                "-c",
+                "-x", "4",
+                "-s", "4",
+                "-k", "10M",
+                "-d", destination_dir,
+            ]
+            if effective_token:
+                aria2_cmd.append(f"--header=Authorization: Bearer {effective_token.strip()}")
+        else:
+            aria2_cmd = [
+                "aria2c",
+                "--console-log-level=error",
+                "--summary-interval=1",
+                "--file-allocation=none",
                 "-c",
                 "-x", "16",
                 "-s", "16",
-                "-k", "1M",
-                "-j", "8",
-                "--max-tries=10",
-                "--retry-wait=3",
-                "--timeout=60",
-                "--connect-timeout=30",
-                "--file-allocation=none",
-                "--disk-cache=64M",
-                "--optimize-concurrent-downloads=true",
-                "--summary-interval=5",
+                "-k", "10M",
                 "-d", destination_dir,
-                "-o", filename,
-                url,
             ]
-            res_anon = subprocess.run(cmd_no_token)
-            if res_anon.returncode == 0:
-                return dest_path
+
+        aria2_cmd.extend(["--user-agent=Mozilla/5.0", "--content-disposition"])
+        if filename:
+            aria2_cmd.extend(["-o", filename])
+        aria2_cmd.append(url)
+
+        max_retries = 8
+        retry_count = 0
+        success = False
+
+        while retry_count <= max_retries:
+            if retry_count > 0:
+                print(f"\n⚠️ Kết nối gián đoạn. Đang tự động TẢI TIẾP (Thử lại {retry_count}/{max_retries})...")
+                time.sleep(2)
+
+            process = subprocess.Popen(aria2_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            for line in iter(process.stdout.readline, ""):
+                if line.startswith("[#") and "ETA:" in line:
+                    print("\r" + line.strip(), end="", flush=True)
+                elif line.strip():
+                    print("\n" + line.strip())
+            process.wait()
+            print("")
+
+            if process.returncode == 0:
+                success = True
+                break
+            else:
+                retry_count += 1
+
+        if success:
+            if hasattr(os, "sync"):
+                try:
+                    os.sync()
+                except Exception:
+                    pass
+            print(f"🎉 Tải xuống thành công! Tệp đã lưu an toàn tại: {dest_path}")
+            return dest_path
 
     # Fallback sang requests streaming download với cơ chế nối tiếp (HTTP Range Resume)
     return download_file_requests(url, dest_path, token=effective_token)
