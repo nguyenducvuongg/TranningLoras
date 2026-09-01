@@ -71,6 +71,28 @@ def is_file_complete(filepath: str, min_size_bytes: int = 1024 * 1024) -> bool:
         return False
 
 
+def find_existing_file_across_storage(
+    candidate_filenames: List[str],
+    search_dirs: List[str],
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Tìm kiếm file khả dĩ trong tất cả các thư mục tiềm năng trên Google Drive & Local SSD.
+    Trả về (đường_dẫn_tồn_tại, loại_vị_trí: 'ready_drive' | 'ready_local').
+    """
+    # Loại bỏ tên rỗng hoặc trùng
+    clean_fnames = list(dict.fromkeys([f for f in candidate_filenames if f and f.strip()]))
+    clean_dirs = list(dict.fromkeys([d for d in search_dirs if d and os.path.exists(d)]))
+
+    for d in clean_dirs:
+        for fname in clean_fnames:
+            candidate_path = os.path.join(d, fname)
+            if is_file_complete(candidate_path):
+                location_type = "ready_drive" if "drive" in candidate_path.lower() else "ready_local"
+                return candidate_path, location_type
+
+    return None, None
+
+
 def get_model_component_paths(
     model_name: str,
     base_dir: str = DEFAULT_DRIVE_ROOT,
@@ -87,17 +109,42 @@ def get_model_component_paths(
     models_vae_dir = os.path.join(base_dir, "models", "vae") if os.path.exists("/content/drive/MyDrive") else local_dir
     models_te_dir = os.path.join(base_dir, "models", "text_encoders") if os.path.exists("/content/drive/MyDrive") else local_dir
 
+    search_dirs = [
+        models_dit_dir,
+        models_vae_dir,
+        models_te_dir,
+        os.path.join(base_dir, "models"),
+        os.path.join(base_dir, "weights"),
+        "/content/drive/MyDrive/TranningLorasData/models",
+        "/content/drive/MyDrive/TranningLorasData/models/dit",
+        "/content/drive/MyDrive/TranningLorasData/models/vae",
+        "/content/drive/MyDrive/TranningLorasData/models/text_encoders",
+        "/content/drive/MyDrive/models",
+        "/content/drive/MyDrive/LoRA_Data/models",
+        local_dir,
+        "/content/models",
+    ]
+
     # 1. Base DiT
     if "download_url" in info and info["download_url"]:
+        url = info["download_url"]
         fname = f"{info['arch']}_{model_name.replace(' ', '_')}.safetensors"
+        url_fname = os.path.basename(url.split("?")[0])
         drive_path = os.path.join(models_dit_dir, fname)
         local_path = os.path.join(local_dir, fname)
+        
+        candidates = [fname, url_fname, f"{info['arch']}.safetensors"]
+        if "krea" in info["arch"]:
+            candidates.extend(["krea2_raw_bf16.safetensors", "krea2_raw.safetensors", "krea2_Krea2-Raw.safetensors", "Krea-2-Raw.safetensors"])
+        
         components.append({
             "type": "DiT Model",
             "key": "dit",
             "name": model_name,
             "filename": fname,
-            "url": info["download_url"],
+            "candidates": candidates,
+            "search_dirs": search_dirs,
+            "url": url,
             "fallback_url": info.get("fallback_url"),
             "drive_path": drive_path,
             "local_path": local_path,
@@ -109,13 +156,18 @@ def get_model_component_paths(
         url = VAE_REGISTRY[vae_key]
         ext = ".pth" if "pth" in url else ".safetensors"
         fname = f"{vae_key}{ext}"
+        url_fname = os.path.basename(url.split("?")[0])
         drive_path = os.path.join(models_vae_dir, fname)
         local_path = os.path.join(local_dir, fname)
+        
+        candidates = [fname, url_fname, f"{vae_key}.safetensors", f"{vae_key}.pth", "ae.safetensors"]
         components.append({
             "type": "VAE",
             "key": "vae",
             "name": vae_key,
             "filename": fname,
+            "candidates": candidates,
+            "search_dirs": search_dirs,
             "url": url,
             "drive_path": drive_path,
             "local_path": local_path,
@@ -127,13 +179,18 @@ def get_model_component_paths(
         url = TEXT_ENCODER_REGISTRY[te_key]
         ext = ".pth" if "pth" in url else ".safetensors"
         fname = f"{te_key}{ext}"
+        url_fname = os.path.basename(url.split("?")[0])
         drive_path = os.path.join(models_te_dir, fname)
         local_path = os.path.join(local_dir, fname)
+        
+        candidates = [fname, url_fname, f"{te_key}.safetensors", "clip_l.safetensors", "text_encoder.safetensors"]
         components.append({
             "type": "Text Encoder 1",
             "key": "text_encoder1",
             "name": te_key,
             "filename": fname,
+            "candidates": candidates,
+            "search_dirs": search_dirs,
             "url": url,
             "drive_path": drive_path,
             "local_path": local_path,
@@ -145,13 +202,26 @@ def get_model_component_paths(
         url = TEXT_ENCODER_REGISTRY[te2_key]
         ext = ".pth" if "pth" in url else ".safetensors"
         fname = f"{te2_key}{ext}"
+        url_fname = os.path.basename(url.split("?")[0])
         drive_path = os.path.join(models_te_dir, fname)
         local_path = os.path.join(local_dir, fname)
+        
+        candidates = [
+            fname,
+            url_fname,
+            f"{te2_key}.safetensors",
+            "t5xxl_fp16.safetensors",
+            "t5xxl_fp8_e4m3fn.safetensors",
+            "t5xxl.safetensors",
+            "t5-v1_1-xxl.safetensors",
+        ]
         components.append({
             "type": "Text Encoder 2",
             "key": "text_encoder2",
             "name": te2_key,
             "filename": fname,
+            "candidates": candidates,
+            "search_dirs": search_dirs,
             "url": url,
             "drive_path": drive_path,
             "local_path": local_path,
@@ -163,13 +233,18 @@ def get_model_component_paths(
         url = TEXT_ENCODER_REGISTRY[cv_key]
         ext = ".pth" if "pth" in url else ".safetensors"
         fname = f"{cv_key}{ext}"
+        url_fname = os.path.basename(url.split("?")[0])
         drive_path = os.path.join(models_te_dir, fname)
         local_path = os.path.join(local_dir, fname)
+        
+        candidates = [fname, url_fname, f"{cv_key}.safetensors", f"{cv_key}.pth"]
         components.append({
             "type": "Clip Vision",
             "key": "clip_vision",
             "name": cv_key,
             "filename": fname,
+            "candidates": candidates,
+            "search_dirs": search_dirs,
             "url": url,
             "drive_path": drive_path,
             "local_path": local_path,
@@ -180,13 +255,18 @@ def get_model_component_paths(
         ad_key = info["adapter"]
         url = TEXT_ENCODER_REGISTRY[ad_key]
         fname = f"{ad_key}.safetensors"
+        url_fname = os.path.basename(url.split("?")[0])
         drive_path = os.path.join(models_dit_dir, fname)
         local_path = os.path.join(local_dir, fname)
+        
+        candidates = [fname, url_fname, f"{ad_key}.safetensors"]
         components.append({
             "type": "Adapter",
             "key": "adapter",
             "name": ad_key,
             "filename": fname,
+            "candidates": candidates,
+            "search_dirs": search_dirs,
             "url": url,
             "drive_path": drive_path,
             "local_path": local_path,
@@ -201,7 +281,7 @@ def scan_model_suite(
     local_dir: str = LOCAL_CACHE_DIR,
 ) -> Dict[str, Any]:
     """
-    Quét kiểm tra toàn bộ các file thành phần của mô hình.
+    Quét kiểm tra toàn bộ các file thành phần của mô hình qua bộ tìm kiếm đa vị trí.
     Trả về trạng thái chi tiết của từng tệp: 'ready_drive', 'ready_local', 'missing'.
     """
     components = get_model_component_paths(model_name, base_dir, local_dir)
@@ -211,23 +291,19 @@ def scan_model_suite(
     ready_components = 0
 
     for c in components:
-        drive_p = c["drive_path"]
-        local_p = c["local_path"]
+        candidates = c.get("candidates", [c["filename"]])
+        s_dirs = c.get("search_dirs", [c["drive_path"], c["local_path"]])
+
+        found_path, location_status = find_existing_file_across_storage(candidates, s_dirs)
 
         status = "missing"
         active_path = None
         size_bytes = 0
 
-        if is_file_complete(drive_p):
-            status = "ready_drive"
-            active_path = drive_p
-            size_bytes = os.path.getsize(drive_p)
-            ready_components += 1
-            total_ready_size_bytes += size_bytes
-        elif is_file_complete(local_p):
-            status = "ready_local"
-            active_path = local_p
-            size_bytes = os.path.getsize(local_p)
+        if found_path and location_status:
+            status = location_status
+            active_path = found_path
+            size_bytes = os.path.getsize(found_path)
             ready_components += 1
             total_ready_size_bytes += size_bytes
 

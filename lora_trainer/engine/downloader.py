@@ -186,17 +186,13 @@ def download_model_suite(
         fallback_url = c.get("fallback_url")
         drive_p = c["drive_path"]
         local_p = c["local_path"]
+        active_p = c.get("active_path")
 
-        # Nếu đã có trên Google Drive
-        if is_file_complete(drive_p):
-            print(f"✔️ [Kho Google Drive] Đã có sẵn {c_type}: {fname}")
-            downloaded_paths[c_key] = drive_p
-            continue
-
-        # Nếu đã có trên Local SSD
-        if is_file_complete(local_p):
-            print(f"✔️ [Local SSD] Đã có sẵn {c_type}: {fname}")
-            downloaded_paths[c_key] = local_p
+        # Nếu đã tìm thấy file hợp lệ ở bất kỳ đâu trên Google Drive hoặc Local SSD
+        if active_p and is_file_complete(active_p):
+            loc_label = "Kho Google Drive" if "drive" in active_p.lower() else "Local SSD"
+            print(f"✔️ [{loc_label}] Đã có sẵn {c_type}: {os.path.basename(active_p)} ({c.get('size_str', '')}) -> Bỏ qua tải!")
+            downloaded_paths[c_key] = active_p
             continue
 
         # Chọn đích tải ưu tiên: Google Drive nếu có kết nối, ngược lại là Local SSD
