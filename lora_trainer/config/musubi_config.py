@@ -217,7 +217,7 @@ class MusubiConfigBuilder:
         if "wan" in arch:
             script = "wan_cache_latents.py"
         elif "kontext" in arch:
-            script = "src/musubi_tuner/flux_cache_latents.py"
+            script = "src/musubi_tuner/flux_kontext_cache_latents.py"
         elif "flux2" in arch:
             script = "src/musubi_tuner/flux_2_cache_latents.py"
         elif "qwen" in arch:
@@ -268,7 +268,7 @@ class MusubiConfigBuilder:
             return dict_to_cli_args(cfg)
 
         if "kontext" in arch:
-            script = "src/musubi_tuner/flux_cache_text_encoder_outputs.py"
+            script = "src/musubi_tuner/flux_kontext_cache_text_encoder_outputs.py"
         elif "flux2" in arch:
             script = "src/musubi_tuner/flux_2_cache_text_encoder_outputs.py"
         elif "qwen" in arch:
@@ -311,7 +311,7 @@ class MusubiConfigBuilder:
         max_train_steps: int = 0,
         save_every_n_epochs: int = 1,
         save_every_n_steps: int = 0,
-        timestep_sampling: str = "shift",
+        timestep_sampling: Optional[str] = None,
         min_timestep: int = 0,
         max_timestep: int = 1000,
         timestep_boundary: Optional[int] = None,
@@ -327,15 +327,30 @@ class MusubiConfigBuilder:
         train_script = self.model_info.get("musubi_train_script", "train_network.py")
         arch = self.model_info["arch"]
 
-        network_module = "networks.lora"
+        # Chọn network module chuẩn xác theo từng kiến trúc
         if "wan" in arch:
             network_module = "networks.lora_wan"
-        elif "flux" in arch or "kontext" in arch or "krea" in arch:
+            default_ts = "shift"
+        elif "krea" in arch:
+            network_module = "networks.lora_krea2"
+            default_ts = "krea2_shift"
+        elif "flux2" in arch:
+            network_module = "networks.lora_flux_2"
+            default_ts = "flux2_shift"
+        elif "kontext" in arch:
             network_module = "networks.lora_flux"
+            default_ts = "flux_shift"
         elif "qwen" in arch:
             network_module = "networks.lora_qwen_image"
+            default_ts = "shift"
         elif "z_image" in arch:
             network_module = "networks.lora_zimage"
+            default_ts = "shift"
+        else:
+            network_module = "networks.lora_flux"
+            default_ts = "shift"
+
+        effective_timestep_sampling = timestep_sampling or default_ts
 
         # Cấu hình Accelerate launch
         accel_cfg: Dict[str, Any] = {
@@ -353,17 +368,24 @@ class MusubiConfigBuilder:
             "--network_module": network_module,
             "--network_dim": network_dim,
             "--network_alpha": network_alpha,
-            "--timestep_sampling": timestep_sampling,
+            "--timestep_sampling": effective_timestep_sampling,
             "--min_timestep": min_timestep,
             "--max_timestep": max_timestep,
             "--discrete_flow_shift": self.model_info.get("discrete_flow_shift", 3.0),
             "--mixed_precision": "bf16",
             "--save_precision": "bf16",
+            "--sdpa": True,
+            "--split_attn": True,
+            "--max_data_loader_n_workers": 2,
+            "--persistent_data_loader_workers": True,
+            "--weighting_scheme": "none",
             "--seed": seed,
         }
 
-        if fp8_base:
+        if fp8_base and "flux2" not in arch and "krea" not in arch:
             accel_cfg["--fp8_base"] = True
+        if "qwen" in arch:
+            accel_cfg["--fp8_vl"] = True
         if gradient_checkpointing:
             accel_cfg["--gradient_checkpointing"] = True
 

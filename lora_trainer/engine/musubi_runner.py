@@ -84,6 +84,7 @@ def run_musubi_pipeline(
     cache_text_encoder_cmd: Optional[str] = None,
     train_cmd: Optional[str] = None,
     skip_cache: bool = False,
+    post_convert_cmd: Optional[str] = None,
 ) -> bool:
     """
     Chạy trọn vẹn 3 giai đoạn của Musubi-Tuner:
@@ -113,6 +114,11 @@ def run_musubi_pipeline(
         ok = execute_command_stream(train_cmd, musubi_dir)
         if not ok:
             return False
+
+    # Chuyển đổi định dạng nếu cần (ví dụ ComfyUI format cho Z-Image)
+    if post_convert_cmd:
+        print("\n🔹 [HẬU XỬ LÝ]: Chuyển đổi định dạng LoRA sang ComfyUI...")
+        execute_command_stream(post_convert_cmd, musubi_dir)
 
     print("\n🎉 HUẤN LUYỆN HOÀN TẤT THÀNH CÔNG!")
     return True

@@ -133,7 +133,7 @@ class ToolkitConfigBuilder:
             },
             "model": {
                 "name_or_path": self.model_info.get("name_or_path", self.model_name),
-                "arch": self.model_info.get("arch", "flux"),
+                "arch": self.model_info.get("toolkit_arch", self.model_info.get("arch", "flux")),
                 "low_vram": low_vram,
                 "quantize": quantize,
                 "qtype": "qfloat8" if quantize else None,
