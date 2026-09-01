@@ -5,6 +5,17 @@
 
 ---
 
+## ⚡ Mở Nhanh Trên Google Colab (One-Click Launch)
+
+| Tên Notebook | Mô tả & Hỗ trợ Mô hình | Mở trên Colab |
+| :--- | :--- | :---: |
+| **01. Universal Image LoRA Trainer** | Huấn luyện LoRA Hình Ảnh đa năng: **FLUX.1, FLUX.2 Klein, Kontext, Krea2-Raw, Qwen-Image, Z-Image Turbo** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/01_Universal_Image_LoRA_Trainer.ipynb) |
+| **02. Universal Video LoRA Trainer** | Huấn luyện LoRA Video Text-to-Video & Image-to-Video: **Wan 2.1 (14B, 720P, 480P) & Wan 2.2** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/02_Universal_Video_LoRA_Trainer.ipynb) |
+| **03. Dataset Captioning Tools** | Bộ công cụ gán nhãn AI tự động chuyên sâu: **Gemini 3.6/3.7 Flash, JoyCaption, Florence-2, GPT-4o** | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/03_Dataset_Captioning_Tools.ipynb) |
+| **04. Toolkit WebUI Trainer** | Giao diện đồ họa WebUI trực quan của AI-Toolkit qua Colab Port Proxy | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/04_Toolkit_WebUI_Trainer.ipynb) |
+
+---
+
 ## 🌟 1. Cấu Trúc Thư Mục Chuẩn Hóa Trên Google Drive
 
 Khi chạy Bước 1, hệ thống sẽ **tự động quét kiểm tra** và khởi tạo cây thư mục chuẩn hóa tại `/content/drive/MyDrive/TranningLorasData`.  
@@ -134,7 +145,14 @@ Khi chạy Bước 1, hệ thống sẽ **tự động quét kiểm tra** và kh
 
 ## 🛠️ 5. Danh Sách Notebooks Sẵn Sàng Chạy
 
-- **`01_Universal_Image_LoRA_Trainer.ipynb`**: Huấn luyện LoRA hình ảnh cho FLUX.1, FLUX.2, Kontext, Krea2, Qwen, Z-Image.
-- **`02_Universal_Video_LoRA_Trainer.ipynb`**: Huấn luyện LoRA Video Text-to-Video & Image-to-Video cho Wan 2.1 & Wan 2.2.
-- **`03_Dataset_Captioning_Tools.ipynb`**: Công cụ gán nhãn tự động chuyên sâu với Gemini 3.6 Flash & Joy Caption.
-- **`04_Toolkit_WebUI_Trainer.ipynb`**: Giao diện đồ họa AI-Toolkit WebUI qua Colab Port Proxy.
+- **`01_Universal_Image_LoRA_Trainer.ipynb`**: Huấn luyện LoRA hình ảnh cho FLUX.1, FLUX.2, Kontext, Krea2, Qwen, Z-Image.  
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/01_Universal_Image_LoRA_Trainer.ipynb)
+
+- **`02_Universal_Video_LoRA_Trainer.ipynb`**: Huấn luyện LoRA Video Text-to-Video & Image-to-Video cho Wan 2.1 & Wan 2.2.  
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/02_Universal_Video_LoRA_Trainer.ipynb)
+
+- **`03_Dataset_Captioning_Tools.ipynb`**: Công cụ gán nhãn tự động chuyên sâu với Gemini 3.6 Flash & Joy Caption.  
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/03_Dataset_Captioning_Tools.ipynb)
+
+- **`04_Toolkit_WebUI_Trainer.ipynb`**: Giao diện đồ họa AI-Toolkit WebUI qua Colab Port Proxy.  
+  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nguyenducvuongg/TranningLoras/blob/main/notebooks/04_Toolkit_WebUI_Trainer.ipynb)
