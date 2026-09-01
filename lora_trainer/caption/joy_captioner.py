@@ -4,15 +4,21 @@ Mô hình JoyCaption chuyên biệt để tạo mô tả ảnh tự nhiên, phù
 """
 
 import os
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Any
 from PIL import Image
-import torch
-import torch.nn as nn
 from tqdm import tqdm
 from ..data.cleaner import get_supported_images
 
+try:
+    import torch
+    import torch.nn as nn
+    _Module = nn.Module
+except ImportError:
+    torch = None
+    _Module = object
 
-class ImageAdapter(nn.Module):
+
+class ImageAdapter(_Module):
     def __init__(self, input_features: int, output_features: int, ln1: bool, pos_emb: bool, num_image_tokens: int, deep_extract: bool):
         super().__init__()
         self.deep_extract = deep_extract
@@ -24,7 +30,7 @@ class ImageAdapter(nn.Module):
         self.cls_token = None
         self.ln1 = nn.LayerNorm(input_features) if ln1 else nn.Identity()
 
-    def forward(self, vision_outputs: torch.Tensor):
+    def forward(self, vision_outputs: Any):
         x = self.ln1(vision_outputs)
         x = self.linear1(x)
         x = self.act1(x)

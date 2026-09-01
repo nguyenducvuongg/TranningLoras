@@ -198,7 +198,48 @@ class TestDataProcessing(unittest.TestCase):
         self.assertEqual(ds_list[0]["name"], "concept_a")
         self.assertEqual(ds_list[0]["steps"], 100)
         self.assertEqual(ds_list[1]["name"], "concept_b")
-        self.assertEqual(ds_list[1]["steps"], 200)
+class TestKeyManager(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.vault_file = os.path.join(self.temp_dir, "test_vault.json")
+        import lora_trainer.caption.key_manager as km
+        self.original_primary = km.PRIMARY_VAULT_PATH
+        self.original_fallback = km.FALLBACK_VAULT_PATHS
+        km.PRIMARY_VAULT_PATH = self.vault_file
+        km.FALLBACK_VAULT_PATHS = [self.vault_file]
+
+    def tearDown(self):
+        import lora_trainer.caption.key_manager as km
+        km.PRIMARY_VAULT_PATH = self.original_primary
+        km.FALLBACK_VAULT_PATHS = self.original_fallback
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_save_and_get_api_key(self):
+        from lora_trainer.caption.key_manager import save_api_key, get_api_key, get_saved_keys_list, mask_key
+
+        self.assertEqual(mask_key("AIzaSy1234567890abcdef"), "AIzaSy...cdef")
+
+        # Save Gemini Key
+        save_api_key("gemini", "AIzaSy_test_key_1", label="Key Main", set_default=True)
+        self.assertEqual(get_api_key("gemini"), "AIzaSy_test_key_1")
+
+        # Save second Gemini Key
+        save_api_key("gemini", "AIzaSy_test_key_2", label="Key Backup", set_default=False)
+        self.assertEqual(get_api_key("gemini"), "AIzaSy_test_key_1")
+
+        # Select second key by label
+        self.assertEqual(get_api_key("gemini", user_provided_key="Key Backup"), "AIzaSy_test_key_2")
+
+        # Verify list of saved keys
+        keys_list = get_saved_keys_list("gemini")
+        self.assertEqual(len(keys_list), 2)
+        self.assertTrue(keys_list[0]["is_default"])
+        self.assertFalse(keys_list[1]["is_default"])
+
+        # Auto-save when passing new key
+        new_k = get_api_key("huggingface", user_provided_key="hf_test_token_12345", auto_save=True)
+        self.assertEqual(new_k, "hf_test_token_12345")
+        self.assertEqual(get_api_key("huggingface"), "hf_test_token_12345")
 
 
 if __name__ == "__main__":

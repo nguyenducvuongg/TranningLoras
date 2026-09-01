@@ -6,7 +6,6 @@ Mô hình Vision chạy offline miễn phí trực tiếp trên GPU Colab không
 import os
 from typing import Optional, List
 from PIL import Image
-import torch
 from tqdm import tqdm
 from ..data.cleaner import get_supported_images
 
@@ -24,6 +23,7 @@ def load_florence_model(model_id: str = "microsoft/Florence-2-large", device: st
     """Khởi tạo và tải model Florence-2 vào bộ nhớ GPU."""
     global _FLORENCE_MODEL, _FLORENCE_PROCESSOR
     if _FLORENCE_MODEL is None:
+        import torch
         from transformers import AutoProcessor, AutoModelForCausalLM
         
         print(f"📦 Đang tải Florence-2 Model ({model_id})...")

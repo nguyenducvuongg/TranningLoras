@@ -62,8 +62,8 @@ Bộ công cụ huấn luyện LoRA Hình Ảnh đa năng, tối ưu hóa bộ n
 """),
 
     create_cell("markdown", "### ☕ Bước 1: Khởi tạo Môi trường & Nhận diện GPU"),
-    create_cell("code", f"""# @title ⚙️ 1. Cài đặt Thư viện & Kiểm tra GPU
-# @markdown Nhấn nút Play để cài đặt môi trường tối ưu cho Colab
+    create_cell("code", f"""# @title ⚙️ 1. Cài đặt Thư viện & Kiểm tra GPU & Key Vault
+# @markdown Nhấn nút Play để cài đặt môi trường và kiểm tra các API Key đã lưu trên Google Drive:
 
 import os
 import sys
@@ -74,7 +74,7 @@ if not os.path.exists('/content/drive'):
     drive.mount('/content/drive')
 
 # Cài đặt các gói phụ thuộc
-!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow
+!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow ipywidgets
 
 # Clone / Cập nhật repo chính thức
 if not os.path.exists('/content/TranningLoras'):
@@ -86,12 +86,29 @@ else:
 !pip install -q -e .
 
 from lora_trainer.engine.hardware import detect_hardware_environment, setup_cuda_environment
+from lora_trainer.caption.key_manager import display_key_vault_dashboard
 hw_info = detect_hardware_environment()
 
 print("\\n" + "="*60)
 print(f"🚀 GPU: {{hw_info['gpu_name']}} | VRAM: {{hw_info['vram_gb']}} GB ({{hw_info['device_tier']}})")
 print(f"⚡ Khuyến nghị: FP8 = {{hw_info['recommended_fp8']}} | Batch Size = {{hw_info['recommended_batch_size']}} | Res = {{hw_info['recommended_resolution']}}")
 print("="*60 + "\\n")
+
+# Hiển thị bảng điều khiển API Key Vault đã lưu từ các phiên trước
+display_key_vault_dashboard()
+"""),
+
+    create_cell("markdown", "### 🔐 (Tùy chọn) Quản lý & Thêm API Key vào Vault"),
+    create_cell("code", """# @title 🔐 Quản lý API Key Vault (Thêm / Đổi Key)
+# @markdown Dùng form này nếu bạn muốn lưu trước API Key mới vào Google Drive:
+Platform = "gemini" # @param ["gemini", "huggingface", "wandb", "openai", "civitai"]
+New_API_Key = "" # @param {type:'string'}
+Key_Label = "" # @param {type:'string'}
+
+from lora_trainer.caption.key_manager import save_api_key, display_key_vault_dashboard
+if New_API_Key.strip():
+    save_api_key(Platform, New_API_Key, label=Key_Label or None, set_default=True)
+display_key_vault_dashboard()
 """),
 
     create_cell("markdown", "### 📂 Bước 2: Chuẩn bị Dữ liệu & AI Captioning Chuyên Sâu"),
@@ -108,6 +125,8 @@ Caption_Engine = "Gemini-3.6-Flash" # @param ["None", "Gemini-3.6-Flash", "Gemin
 # @markdown 🎯 **Chế độ Prompt chuyên biệt theo mục đích LoRA:**
 Task_Mode = "General" # @param ["General", "Skin_Portrait", "Upscale_Restoration", "Art_Style", "Character_Outfit"]
 Caption_Length = "Medium" # @param ["Short", "Medium", "Long"]
+
+# @markdown 🔑 **API Key (Tự động ghi nhớ)**: Để trống nếu muốn dùng Key đã lưu trước đó trong Vault.
 API_Key = "" # @param {type:'string'}
 Custom_Trigger_Word = "" # @param {type:'string'}
 Add_Folder_Name = False # @param {type:'boolean'}
@@ -128,7 +147,7 @@ for folder in folder_list:
         rm_count, valid_count = clean_directory(folder)
         print(f"🧹 Đã dọn dẹp {rm_count} tệp rác. Còn lại {valid_count} tệp hợp lệ trong {folder}")
 
-    # Chạy Captioning
+    # Chạy Captioning (tự động nhận diện và lưu API Key vào Vault)
     if Caption_Engine.startswith("Gemini"):
         batch_caption_gemini(
             folder,
@@ -180,7 +199,8 @@ Save_Every_N_Epochs = 2 # @param {type:'integer'}
 Sample_Every_N_Steps = 200 # @param {type:'integer'}
 Sample_Prompt = "" # @param {type:'string'}
 
-# @markdown 📊 **Tùy chọn Bổ sung (Token / WandB)**:
+# @markdown 📊 **Tùy chọn Bổ sung (Tự động ghi nhớ vào Vault)**:
+# @markdown 💡 *Để trống các ô dưới nếu bạn muốn dùng Token/Key đã lưu từ trước hoặc Mirror công khai.*
 HF_Token = "" # @param {type:'string'}
 WandB_API_Key = "" # @param {type:'string'}
 Auto_Disconnect = False # @param {type:'boolean'}
@@ -205,7 +225,7 @@ datasets = build_dataset_list(Train_Folders, Control_Folder)
 engine_type = get_preferred_engine(Model_Type)
 print(f"🎯 Mô hình: {Model_Type} | Engine tối ưu: {engine_type.upper()}")
 
-# Tải trước các trọng số cần thiết (tự động hỗ trợ HF Token hoặc Mirror công khai)
+# Tải trước các trọng số cần thiết (tự động hỗ trợ HF Token từ Vault hoặc Mirror công khai)
 weights = download_model_suite(Model_Type, weights_dir="/content/models", hf_token=HF_Token)
 
 if engine_type == "musubi":
@@ -326,7 +346,7 @@ Hệ thống huấn luyện LoRA Video chuyên sâu trên Google Colab hỗ tr�
 - Đặt lượng frame mục tiêu (`Target_Frames`): 25, 33, 49 hoặc 81 frames.
 """),
 
-    create_cell("markdown", "### ☕ Bước 1: Khởi tạo Môi trường & Kiểm tra GPU"),
+    create_cell("markdown", "### ☕ Bước 1: Khởi tạo Môi trường & Kiểm tra GPU & Key Vault"),
     create_cell("code", f"""# @title ⚙️ 1. Cài đặt Môi trường
 import os
 from google.colab import drive
@@ -344,8 +364,10 @@ else:
 !pip install -q -e .
 
 from lora_trainer.engine.hardware import detect_hardware_environment
+from lora_trainer.caption.key_manager import display_key_vault_dashboard
 hw = detect_hardware_environment()
 print(f"🚀 GPU: {{hw['gpu_name']}} | VRAM: {{hw['vram_gb']}} GB")
+display_key_vault_dashboard()
 """),
 
     create_cell("markdown", "### 📂 Bước 2: Dữ liệu Video, Frame Slicing & AI Captioning"),
@@ -361,7 +383,8 @@ Max_Frames = 33 # @param {type:'integer'}
 
 # @markdown 🤖 **Tự động gán nhãn Video bằng Gemini API (Đọc video trực tiếp)**
 Auto_Caption_Video = False # @param {type:'boolean'}
-Gemini_Model = "Gemini-2.5-Flash" # @param ["Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Gemini-2.0-Flash", "Gemini-1.5-Pro", "Gemini-1.5-Flash"]
+Gemini_Model = "Gemini-3.6-Flash" # @param ["Gemini-3.6-Flash", "Gemini-3.7-Flash", "Gemini-3.5-Flash", "Gemini-3.5-Flash-Lite", "Gemini-3.1-Pro", "Gemini-3-Pro"]
+# @markdown 🔑 **Gemini API Key (Tự động ghi nhớ)**: Để trống nếu muốn dùng Key đã lưu trong Vault.
 Gemini_API_Key = "" # @param {type:'string'}
 Custom_Tag = "" # @param {type:'string'}
 
@@ -396,6 +419,8 @@ Save_Every_N_Epochs = 1 # @param {type:'integer'}
 Timestep_Sampling = "shift" # @param ["shift", "sigma", "uniform", "sigmoid", "logsnr"]
 Timestep_Boundary = 875 # @param {"type":"slider","min":0,"max":1000,"step":5}
 Sample_Prompt = "" # @param {type:'string'}
+Sample_Every_N_Steps = 200 # @param {type:'integer'}
+
 # @markdown 📊 **Tùy chọn Bổ sung (Token / WandB)**:
 HF_Token = "" # @param {type:'string'}
 WandB_API_Key = "" # @param {type:'string'}
@@ -482,10 +507,10 @@ save_notebook("notebooks/02_Universal_Video_LoRA_Trainer.ipynb", cells_video)
 # ==============================================================================
 cells_caption = [
     create_cell("markdown", f"""# 📝 AI Dataset Captioning & Tagging Studio
-Bộ công cụ chuyên dụng để dọn dẹp, phân tích và gán nhãn tự động cho tập dữ liệu hình ảnh & video sử dụng **Gemini (1.5, 2.0, 2.5), Florence-2, JoyCaption, OpenAI**.
+Bộ công cụ chuyên dụng để dọn dẹp, phân tích và gán nhãn tự động cho tập dữ liệu hình ảnh & video sử dụng **Gemini 3.x, Florence-2, JoyCaption, OpenAI**.
 """),
 
-    create_cell("markdown", "### ☕ Bước 1: Cài đặt Môi trường"),
+    create_cell("markdown", "### ☕ Bước 1: Cài đặt Môi trường & Key Vault"),
     create_cell("code", f"""# @title ⚙️ 1. Cài đặt Môi trường
 import os
 from google.colab import drive
@@ -502,7 +527,21 @@ else:
 %cd /content/TranningLoras
 !pip install -q -e .
 
-print("✅ Đã sẵn sàng!")
+from lora_trainer.caption.key_manager import display_key_vault_dashboard
+print("✅ Đã cài đặt hoàn tất!")
+display_key_vault_dashboard()
+"""),
+
+    create_cell("markdown", "### 🔐 (Tùy chọn) Quản lý API Key Vault"),
+    create_cell("code", """# @title 🔐 Quản lý API Key Vault (Thêm / Đổi Key)
+Platform = "gemini" # @param ["gemini", "huggingface", "wandb", "openai", "civitai"]
+New_API_Key = "" # @param {type:'string'}
+Key_Label = "" # @param {type:'string'}
+
+from lora_trainer.caption.key_manager import save_api_key, display_key_vault_dashboard
+if New_API_Key.strip():
+    save_api_key(Platform, New_API_Key, label=Key_Label or None, set_default=True)
+display_key_vault_dashboard()
 """),
 
     create_cell("markdown", "### 📂 Bước 2: AI Captioning Studio"),
@@ -511,6 +550,8 @@ Dataset_Folder = "/content/drive/MyDrive/My_Dataset" # @param {type:'string'}
 Caption_Engine = "Gemini-3.6-Flash" # @param ["Gemini-3.6-Flash", "Gemini-3.7-Flash", "Gemini-3.5-Flash", "Gemini-3.5-Flash-Lite", "Gemini-3.1-Pro", "Gemini-3-Pro", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
 Task_Mode = "General" # @param ["General", "Skin_Portrait", "Upscale_Restoration", "Art_Style", "Character_Outfit"]
 Caption_Length = "Medium" # @param ["Short", "Medium", "Long"]
+
+# @markdown 🔑 **API Key (Tự động ghi nhớ)**: Để trống nếu muốn dùng Key đã lưu trong Vault.
 API_Key = "" # @param {type:'string'}
 Overwrite_Existing = False # @param {type:'boolean'}
 Is_Video_Dataset = False # @param {type:'boolean'}
