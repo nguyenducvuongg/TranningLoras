@@ -24,6 +24,44 @@ import posixpath
 from urllib.parse import urlparse, parse_qs, urlunparse, urlencode
 
 
+def parse_aria2_size(size_str: str) -> int:
+    """Chuyển đổi chuỗi dung lượng (ví dụ '16.2GiB', '320MiB', '500KiB') thành số bytes."""
+    size_str = size_str.strip()
+    match = re.match(r"^([\d\.]+)\s*([KMGTPE]?i?B?)$", size_str, re.IGNORECASE)
+    if not match:
+        return 0
+    val = float(match.group(1))
+    unit = match.group(2).upper()
+    multiplier = 1
+    if "T" in unit:
+        multiplier = 1024 ** 4
+    elif "G" in unit:
+        multiplier = 1024 ** 3
+    elif "M" in unit:
+        multiplier = 1024 ** 2
+    elif "K" in unit:
+        multiplier = 1024
+    return int(val * multiplier)
+
+
+def parse_aria2_progress(line: str) -> Optional[Dict[str, Any]]:
+    """Phân tích dòng tiến trình của aria2c để cập nhật thanh tqdm chuẩn đẹp."""
+    pattern = r"\[#\w+\s+([\d\.]+\w+)/([\d\.]+\w+)\((\d+)%\).*?DL:([\d\.]+\w+)"
+    m = re.search(pattern, line)
+    if m:
+        downloaded_str = m.group(1)
+        total_str = m.group(2)
+        pct = int(m.group(3))
+        speed_str = m.group(4)
+        return {
+            "downloaded_bytes": parse_aria2_size(downloaded_str),
+            "total_bytes": parse_aria2_size(total_str),
+            "percent": pct,
+            "speed": speed_str,
+        }
+    return None
+
+
 def is_aria2_available() -> bool:
     """Kiểm tra aria2c có sẵn trong hệ thống hay không."""
     return shutil.which("aria2c") is not None
@@ -83,10 +121,10 @@ def aria2_download(
 ) -> str:
     """
     Tải file mô hình trực tiếp vào Google Drive bằng aria2c:
-    - Kế thừa 100% logic ComfyUI_Model_Downloader.
+    - Giao diện thanh tiến trình chuẩn hóa tqdm (hiển thị % dung lượng, thời gian, tốc độ).
+    - Kế thừa 100% logic cốt lõi từ ComfyUI_Model_Downloader.
     - Đa luồng siêu tốc với --file-allocation=none (tương thích tuyệt đối với Google Drive FUSE).
     - Tự động resume / nối tiếp khi mạng chập chờn với vòng lặp thử lại thông minh (max 8 lần).
-    - Hiển thị thanh tiến trình và ETA trực tiếp trên console.
     """
     os.makedirs(destination_dir, exist_ok=True)
     url = prepare_download_url(url, token=token, civitai_key=civitai_key)
@@ -147,6 +185,7 @@ def aria2_download(
         max_retries = 8
         retry_count = 0
         success = False
+        pbar = None
 
         while retry_count <= max_retries:
             if retry_count > 0:
@@ -155,18 +194,40 @@ def aria2_download(
 
             process = subprocess.Popen(aria2_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             for line in iter(process.stdout.readline, ""):
-                if line.startswith("[#") and "ETA:" in line:
-                    print("\r" + line.strip(), end="", flush=True)
-                elif line.strip():
-                    print("\n" + line.strip())
+                if not line:
+                    break
+                parsed = parse_aria2_progress(line)
+                if parsed:
+                    if pbar is None:
+                        pbar = tqdm(
+                            desc=filename,
+                            total=parsed["total_bytes"] if parsed["total_bytes"] > 0 else None,
+                            unit="iB",
+                            unit_scale=True,
+                            unit_divisor=1024,
+                            leave=True,
+                        )
+                    elif pbar.total is None or pbar.total <= 0:
+                        pbar.total = parsed["total_bytes"]
+
+                    pbar.n = parsed["downloaded_bytes"]
+                    pbar.refresh()
+
             process.wait()
-            print("")
 
             if process.returncode == 0:
                 success = True
+                if pbar:
+                    if pbar.total and pbar.n < pbar.total:
+                        pbar.n = pbar.total
+                        pbar.refresh()
+                    pbar.close()
                 break
             else:
                 retry_count += 1
+
+        if pbar and not success:
+            pbar.close()
 
         if success:
             if hasattr(os, "sync"):
@@ -217,6 +278,7 @@ def download_file_requests(
         unit="iB",
         unit_scale=True,
         unit_divisor=1024,
+        leave=True,
     ) as pbar:
         for attempt in range(max_retries):
             existing_bytes = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
@@ -271,6 +333,7 @@ def download_file(
     overwrite: bool = False,
     fallback_url: Optional[str] = None,
     token: Optional[str] = None,
+    civitai_key: Optional[str] = None,
 ) -> str:
     """Tải file đơn lẻ đến đích cụ thể, hỗ trợ fallback URL nếu gặp lỗi xác thực 401/404."""
     if os.path.exists(destination_path) and os.path.getsize(destination_path) > 0 and not overwrite:
@@ -281,14 +344,14 @@ def download_file(
         os.makedirs(dest_dir, exist_ok=True)
     filename = os.path.basename(destination_path)
     try:
-        return aria2_download(url, dest_dir, filename, overwrite, token=token)
+        return aria2_download(url, dest_dir, filename, overwrite, token=token, civitai_key=civitai_key)
     except Exception as e:
         if fallback_url:
             print(f"⚠️ Link chính gặp sự cố ({e}), tự động chuyển sang link tải dự phòng...")
             try:
-                return aria2_download(fallback_url, dest_dir, filename, overwrite, token=token)
+                return aria2_download(fallback_url, dest_dir, filename, overwrite, token=token, civitai_key=civitai_key)
             except Exception:
-                return aria2_download(fallback_url, dest_dir, filename, overwrite, token=None)
+                return aria2_download(fallback_url, dest_dir, filename, overwrite, token=None, civitai_key=civitai_key)
         raise e
 
 
@@ -296,11 +359,13 @@ def download_model_suite(
     model_name: str,
     weights_dir: str = "/content/models",
     hf_token: Optional[str] = None,
+    civitai_key: Optional[str] = None,
     base_drive_dir: str = "/content/drive/MyDrive/TranningLorasData",
 ) -> Dict[str, str]:
     """
     Quản lý và tải toàn bộ bộ trọng số cần thiết (DiT, VAE, Text Encoder).
     Tự động kiểm tra và ưu tiên sử dụng các file đã lưu sẵn trên Google Drive để tránh tải lại.
+    Giao diện hiển thị thanh tiến trình chuẩn hóa trực quan và chuyên nghiệp.
     """
     os.makedirs(weights_dir, exist_ok=True)
     if hf_token:
@@ -324,6 +389,14 @@ def download_model_suite(
         local_p = c["local_path"]
         active_p = c.get("active_path")
 
+        # Định dạng nhãn hiển thị theo chuẩn UI
+        if "dit" in c_type.lower():
+            header_label = "Base DiT Model"
+        elif c.get("name"):
+            header_label = f"{c_type} ({c['name']})"
+        else:
+            header_label = f"{c_type} ({fname})"
+
         # Nếu đã tìm thấy file hợp lệ ở bất kỳ đâu trên Google Drive hoặc Local SSD
         if active_p and is_file_complete(active_p):
             loc_label = "Kho Google Drive" if "drive" in active_p.lower() else "Local SSD"
@@ -333,8 +406,8 @@ def download_model_suite(
 
         # Chọn đích tải ưu tiên: Google Drive nếu có kết nối, ngược lại là Local SSD
         target_dest = drive_p if os.path.exists("/content/drive/MyDrive") else local_p
-        print(f"🚀 Đang tải {c_type} ({fname})...")
-        final_path = download_file(url, target_dest, fallback_url=fallback_url, token=hf_token)
+        print(f"🚀 Đang tải {header_label}...")
+        final_path = download_file(url, target_dest, fallback_url=fallback_url, token=hf_token, civitai_key=civitai_key)
         downloaded_paths[c_key] = final_path
 
     print("\n✅ Hoàn tất kiểm tra & sẵn sàng toàn bộ trọng số!")
