@@ -36,7 +36,7 @@ def aria2_download(
     overwrite: bool = False,
     token: Optional[str] = None,
 ) -> str:
-    """Tải file qua aria2c với 16 luồng song song có hỗ trợ Token Header."""
+    """Tải file qua aria2c với 16 luồng song song, tối ưu I/O và tự động fallback."""
     os.makedirs(destination_dir, exist_ok=True)
     if not filename:
         filename = url.split("/")[-1].split("?")[0]
@@ -46,8 +46,7 @@ def aria2_download(
         print(f"✔️ Đã có sẵn file: {filename}")
         return dest_path
 
-    if token is None and "huggingface.co" in url:
-        token = get_hf_token()
+    effective_token = token if token is not None else get_hf_token()
 
     if is_aria2_available():
         cmd = [
@@ -57,32 +56,62 @@ def aria2_download(
             "-x", "16",
             "-s", "16",
             "-k", "1M",
-            "-j", "4",
+            "-j", "8",
+            "--file-allocation=none",
+            "--disk-cache=64M",
+            "--optimize-concurrent-downloads=true",
+            "--summary-interval=5",
             "-d", destination_dir,
             "-o", filename,
         ]
-        if token and "huggingface.co" in url:
-            cmd.append(f"--header=Authorization: Bearer {token}")
+        if effective_token and ("huggingface.co" in url or "hf.co" in url):
+            cmd.append(f"--header=Authorization: Bearer {effective_token.strip()}")
         cmd.append(url)
         res = subprocess.run(cmd)
         if res.returncode == 0:
             return dest_path
 
-    # Fallback to requests streaming download
-    return download_file_requests(url, dest_path, token=token)
+        # Nếu lỗi và có token, thử lại aria2c không dùng token (cho public repos)
+        if effective_token:
+            cmd_no_token = [
+                "aria2c",
+                "--console-log-level=error",
+                "-c",
+                "-x", "16",
+                "-s", "16",
+                "-k", "1M",
+                "-j", "8",
+                "--file-allocation=none",
+                "--disk-cache=64M",
+                "--optimize-concurrent-downloads=true",
+                "--summary-interval=5",
+                "-d", destination_dir,
+                "-o", filename,
+                url,
+            ]
+            res_anon = subprocess.run(cmd_no_token)
+            if res_anon.returncode == 0:
+                return dest_path
+
+    # Fallback sang requests streaming download
+    return download_file_requests(url, dest_path, token=effective_token)
 
 
 def download_file_requests(url: str, destination_path: str, token: Optional[str] = None) -> str:
-    """Tải file bằng thư viện requests có hiển thị tiến trình tqdm."""
+    """Tải file bằng thư viện requests có hiển thị tiến trình tqdm và tự phục hồi khi lỗi token."""
     os.makedirs(os.path.dirname(destination_path), exist_ok=True)
-    if token is None and "huggingface.co" in url:
-        token = get_hf_token()
+    effective_token = token if token is not None else get_hf_token()
 
     headers = {}
-    if token and "huggingface.co" in url:
-        headers["Authorization"] = f"Bearer {token}"
+    if effective_token and ("huggingface.co" in url or "hf.co" in url):
+        headers["Authorization"] = f"Bearer {effective_token.strip()}"
 
     response = requests.get(url, headers=headers, stream=True, allow_redirects=True)
+    
+    # Nếu token bị 401/403, tự động thử lại yêu cầu ẩn danh không token
+    if response.status_code in (401, 403) and effective_token:
+        response = requests.get(url, stream=True, allow_redirects=True)
+
     response.raise_for_status()
 
     total_size = int(response.headers.get("content-length", 0))
@@ -118,9 +147,12 @@ def download_file(
     try:
         return aria2_download(url, dest_dir, filename, overwrite, token=token)
     except Exception as e:
-        if fallback_url and ("401" in str(e) or "404" in str(e) or "Unauthorized" in str(e)):
-            print(f"⚠️ Link chính gặp lỗi ({e}), chuyển sang link tải dự phòng...")
-            return aria2_download(fallback_url, dest_dir, filename, overwrite, token=token)
+        if fallback_url:
+            print(f"⚠️ Link chính gặp sự cố ({e}), tự động chuyển sang link tải dự phòng...")
+            try:
+                return aria2_download(fallback_url, dest_dir, filename, overwrite, token=token)
+            except Exception:
+                return aria2_download(fallback_url, dest_dir, filename, overwrite, token=None)
         raise e
 
 

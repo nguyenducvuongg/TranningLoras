@@ -5,11 +5,11 @@ Chứa thông tin cấu hình, URL tải xuống chính thức từ HuggingFace 
 
 from typing import Dict, Any, Optional
 
-# Registry các VAE tiêu chuẩn (100% Public Direct Mirrors)
+# Registry các VAE tiêu chuẩn (100% Public Direct Mirrors - 200 OK)
 VAE_REGISTRY: Dict[str, str] = {
-    "flux_vae": "https://huggingface.co/black-forest-labs/FLUX.1-schnell/resolve/main/vae/diffusion_pytorch_model.safetensors",
+    "flux_vae": "https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/ae.safetensors",
     "flux2_vae": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/resolve/main/split_files/vae/flux2-vae.safetensors",
-    "qwen_vae": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_vae.safetensors",
+    "qwen_vae": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
     "z_image_vae": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
     "wan21_vae": "https://huggingface.co/Wan-AI/Wan2.1-T2V-14B/resolve/main/Wan2.1_VAE.pth",
     "wan22_vae": "https://huggingface.co/Wan-AI/Wan2.1-T2V-14B/resolve/main/Wan2.1_VAE.pth",
@@ -17,12 +17,12 @@ VAE_REGISTRY: Dict[str, str] = {
 }
 
 VAE_FALLBACKS: Dict[str, str] = {
-    "flux_vae": "https://huggingface.co/cocktailpeanut/flux1-schnell/resolve/main/vae/diffusion_pytorch_model.safetensors",
+    "flux_vae": "https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/ae.safetensors",
     "flux2_vae": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/resolve/main/split_files/vae/flux2-vae.safetensors",
-    "qwen_vae": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_vae.safetensors",
+    "qwen_vae": "https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors",
 }
 
-# Registry các Text Encoder tiêu chuẩn (100% Public Direct Mirrors)
+# Registry các Text Encoder tiêu chuẩn (100% Public Direct Mirrors - 200 OK)
 TEXT_ENCODER_REGISTRY: Dict[str, str] = {
     "clip_l": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/clip_l.safetensors",
     "t5xxl_fp16": "https://huggingface.co/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp16.safetensors",
@@ -36,8 +36,9 @@ TEXT_ENCODER_REGISTRY: Dict[str, str] = {
 }
 
 TEXT_ENCODER_FALLBACKS: Dict[str, str] = {
-    "clip_l": "https://huggingface.co/cocktailpeanut/flux1-schnell/resolve/main/text_encoder/model.safetensors",
-    "t5xxl_fp16": "https://huggingface.co/cocktailpeanut/flux1-schnell/resolve/main/text_encoder_2/model.safetensors",
+    "clip_l": "https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/clip_l.safetensors",
+    "t5xxl_fp16": "https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/t5xxl_fp16.safetensors",
+    "t5xxl_fp8": "https://huggingface.co/camenduru/FLUX.1-dev/resolve/main/t5xxl_fp8_e4m3fn.safetensors",
 }
 
 # Registry toàn diện các kiến trúc Model
@@ -73,8 +74,8 @@ MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "type": "image",
         "arch": "flux_kontext",
         "musubi_train_script": "src/musubi_tuner/flux_train_network.py",
-        "download_url": "https://huggingface.co/Comfy-Org/flux1-kontext-dev_ComfyUI/resolve/main/split_files/diffusion_models/flux1-dev-kontext_bf16.safetensors",
-        "fallback_url": "https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev/resolve/main/flux1-kontext-dev.safetensors",
+        "download_url": "https://huggingface.co/Comfy-Org/flux1-kontext-dev_ComfyUI/resolve/main/split_files/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors",
+        "fallback_url": "https://huggingface.co/Comfy-Org/flux1-kontext-dev_ComfyUI/resolve/main/split_files/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors",
         "vae": "flux_vae",
         "clip": "clip_l",
         "clip2": "t5xxl_fp16",
@@ -87,7 +88,8 @@ MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
         "type": "image",
         "arch": "flux2",
         "musubi_train_script": "src/musubi_tuner/flux_2_train_network.py",
-        "download_url": "https://huggingface.co/Comfy-Org/vae-text-encorder-for-flux-klein-9b/resolve/main/split_files/diffusion_models/flux-2-klein-base-9b.safetensors",
+        "download_url": "https://huggingface.co/zhangchenxu/FLUX.2-klein-base-9B/resolve/main/flux-2-klein-base-9b.safetensors",
+        "fallback_url": "https://huggingface.co/SassyDiffusion/FLUX.2-klein-base-9B-bf16/resolve/main/flux-2-klein-base-9b.safetensors",
         "vae": "flux2_vae",
         "clip": "qwen_3_8b",
         "model_version": "flux2_klein_9b",
