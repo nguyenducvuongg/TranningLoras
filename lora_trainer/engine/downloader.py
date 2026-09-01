@@ -19,9 +19,26 @@ from ..config.model_registry import (
 from ..caption.key_manager import get_api_key
 
 
+import time
+
+
 def is_aria2_available() -> bool:
     """Kiểm tra aria2c có sẵn trong hệ thống hay không."""
     return shutil.which("aria2c") is not None
+
+
+def ensure_aria2_installed() -> bool:
+    """Tự động kiểm tra và cài đặt aria2 nếu chạy trên môi trường Linux / Colab."""
+    if is_aria2_available():
+        return True
+    if shutil.which("apt-get"):
+        try:
+            print("📦 Đang tự động cài đặt aria2 siêu tốc cho Colab...")
+            subprocess.run(["apt-get", "install", "-y", "-qq", "aria2"], check=False)
+            return is_aria2_available()
+        except Exception:
+            pass
+    return False
 
 
 def get_hf_token() -> Optional[str]:
@@ -36,7 +53,7 @@ def aria2_download(
     overwrite: bool = False,
     token: Optional[str] = None,
 ) -> str:
-    """Tải file qua aria2c với 16 luồng song song, tối ưu I/O và tự động fallback."""
+    """Tải file qua aria2c với 16 luồng song song, tối ưu I/O, tự nối tiếp (resume) và tự động fallback."""
     os.makedirs(destination_dir, exist_ok=True)
     if not filename:
         filename = url.split("/")[-1].split("?")[0]
@@ -48,7 +65,7 @@ def aria2_download(
 
     effective_token = token if token is not None else get_hf_token()
 
-    if is_aria2_available():
+    if ensure_aria2_installed():
         cmd = [
             "aria2c",
             "--console-log-level=error",
@@ -57,6 +74,10 @@ def aria2_download(
             "-s", "16",
             "-k", "1M",
             "-j", "8",
+            "--max-tries=10",
+            "--retry-wait=3",
+            "--timeout=60",
+            "--connect-timeout=30",
             "--file-allocation=none",
             "--disk-cache=64M",
             "--optimize-concurrent-downloads=true",
@@ -81,6 +102,10 @@ def aria2_download(
                 "-s", "16",
                 "-k", "1M",
                 "-j", "8",
+                "--max-tries=10",
+                "--retry-wait=3",
+                "--timeout=60",
+                "--connect-timeout=30",
                 "--file-allocation=none",
                 "--disk-cache=64M",
                 "--optimize-concurrent-downloads=true",
@@ -93,40 +118,90 @@ def aria2_download(
             if res_anon.returncode == 0:
                 return dest_path
 
-    # Fallback sang requests streaming download
+    # Fallback sang requests streaming download với cơ chế nối tiếp (HTTP Range Resume)
     return download_file_requests(url, dest_path, token=effective_token)
 
 
-def download_file_requests(url: str, destination_path: str, token: Optional[str] = None) -> str:
-    """Tải file bằng thư viện requests có hiển thị tiến trình tqdm và tự phục hồi khi lỗi token."""
+def download_file_requests(
+    url: str,
+    destination_path: str,
+    token: Optional[str] = None,
+    max_retries: int = 15,
+) -> str:
+    """
+    Tải file bằng thư viện requests có hiển thị tiến trình tqdm và tự phục hồi, nối tiếp (HTTP Range)
+    khi gặp sự cố IncompleteRead / ngắt kết nối mạng.
+    """
     os.makedirs(os.path.dirname(destination_path), exist_ok=True)
     effective_token = token if token is not None else get_hf_token()
+
+    temp_path = destination_path + ".part"
+    existing_bytes = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
 
     headers = {}
     if effective_token and ("huggingface.co" in url or "hf.co" in url):
         headers["Authorization"] = f"Bearer {effective_token.strip()}"
 
-    response = requests.get(url, headers=headers, stream=True, allow_redirects=True)
-    
-    # Nếu token bị 401/403, tự động thử lại yêu cầu ẩn danh không token
-    if response.status_code in (401, 403) and effective_token:
-        response = requests.get(url, stream=True, allow_redirects=True)
+    total_size = 0
+    try:
+        head_resp = requests.head(url, headers=headers, allow_redirects=True, timeout=30)
+        total_size = int(head_resp.headers.get("content-length", 0))
+    except Exception:
+        pass
 
-    response.raise_for_status()
-
-    total_size = int(response.headers.get("content-length", 0))
     desc = os.path.basename(destination_path)
 
-    with open(destination_path, "wb") as f, tqdm(
+    with tqdm(
         desc=desc,
-        total=total_size,
+        total=total_size if total_size > 0 else None,
+        initial=existing_bytes,
         unit="iB",
         unit_scale=True,
         unit_divisor=1024,
     ) as pbar:
-        for data in response.iter_content(chunk_size=1024 * 1024):
-            size = f.write(data)
-            pbar.update(size)
+        for attempt in range(max_retries):
+            existing_bytes = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
+            if total_size > 0 and existing_bytes >= total_size:
+                break
+
+            req_headers = dict(headers)
+            if existing_bytes > 0:
+                req_headers["Range"] = f"bytes={existing_bytes}-"
+
+            try:
+                with requests.get(url, headers=req_headers, stream=True, timeout=60, allow_redirects=True) as response:
+                    # Nếu token bị lỗi 401/403, thử tải không token
+                    if response.status_code in (401, 403) and effective_token:
+                        req_headers.pop("Authorization", None)
+                        with requests.get(url, headers=req_headers, stream=True, timeout=60, allow_redirects=True) as r_anon:
+                            r_anon.raise_for_status()
+                            with open(temp_path, "ab" if existing_bytes > 0 else "wb") as f:
+                                for chunk in r_anon.iter_content(chunk_size=2 * 1024 * 1024):
+                                    if chunk:
+                                        f.write(chunk)
+                                        pbar.update(len(chunk))
+                    else:
+                        response.raise_for_status()
+                        with open(temp_path, "ab" if existing_bytes > 0 else "wb") as f:
+                            for chunk in response.iter_content(chunk_size=2 * 1024 * 1024):
+                                if chunk:
+                                    f.write(chunk)
+                                    pbar.update(len(chunk))
+
+                # Kiểm tra hoàn tất
+                curr_size = os.path.getsize(temp_path)
+                if total_size == 0 or curr_size >= total_size:
+                    break
+
+            except Exception as e:
+                curr_size = os.path.getsize(temp_path) if os.path.exists(temp_path) else 0
+                print(f"\n⚠️ Mạng gián đoạn tại {round(curr_size / (1024**3), 2)} GB ({e}). Đang tự động nối tiếp tải sau 3s (lần thử {attempt + 1}/{max_retries})...")
+                time.sleep(3)
+
+    if os.path.exists(temp_path):
+        if os.path.exists(destination_path):
+            os.remove(destination_path)
+        os.rename(temp_path, destination_path)
 
     return destination_path
 

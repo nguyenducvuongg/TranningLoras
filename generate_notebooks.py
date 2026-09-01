@@ -73,7 +73,8 @@ from google.colab import drive
 if not os.path.exists('/content/drive'):
     drive.mount('/content/drive')
 
-# Cài đặt các gói phụ thuộc
+# Cài đặt các gói phụ thuộc & công cụ tải đa luồng aria2
+!apt-get install -y -qq aria2
 !pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow ipywidgets voluptuous imagesize einops ftfy regex sentencepiece protobuf scipy wandb lion-pytorch prodigyopt albumentations av opencv-python-headless diffusers imageio imageio-ffmpeg kornia open_clip_torch timm
 
 # Clone / Cập nhật repo chính thức
@@ -365,6 +366,7 @@ from google.colab import drive
 if not os.path.exists('/content/drive'):
     drive.mount('/content/drive')
 
+!apt-get install -y -qq aria2
 !pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow av opencv-python-headless voluptuous imagesize einops ftfy regex sentencepiece protobuf scipy wandb lion-pytorch prodigyopt albumentations diffusers imageio imageio-ffmpeg kornia open_clip_torch timm
 
 if not os.path.exists('/content/TranningLoras'):
