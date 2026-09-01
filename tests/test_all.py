@@ -212,5 +212,40 @@ class TestDatasetAndCaptioning(unittest.TestCase):
         self.assertIn("skin", prompt.lower())
 
 
+class TestBackwardCompatibility(unittest.TestCase):
+    def test_legacy_imports(self):
+        # 1. engine.downloader
+        from lora_trainer.engine.downloader import download_model_suite, aria2_download
+        self.assertTrue(callable(download_model_suite))
+        self.assertTrue(callable(aria2_download))
+
+        # 2. engine runners
+        from lora_trainer.engine.musubi_runner import run_musubi_pipeline
+        from lora_trainer.engine.toolkit_runner import run_toolkit_pipeline
+        self.assertTrue(callable(run_musubi_pipeline))
+        self.assertTrue(callable(run_toolkit_pipeline))
+
+        # 3. config shims
+        from lora_trainer.config.model_registry import get_model_info
+        from lora_trainer.config.musubi_config import MusubiConfigBuilder
+        from lora_trainer.config.toolkit_config import ToolkitConfigBuilder
+        self.assertTrue(callable(get_model_info))
+
+        # 4. data shims
+        from lora_trainer.data.cleaner import clean_directory
+        from lora_trainer.data.dataset_builder import build_dataset_list
+        from lora_trainer.data.renamer import batch_standardize_datasets
+        from lora_trainer.data.tag_processor import process_tags
+
+        # 5. caption shims
+        from lora_trainer.caption.key_manager import save_api_key, get_api_key
+        from lora_trainer.caption.gemini_captioner import batch_caption_gemini
+
+        # 6. utils shims
+        from lora_trainer.utils.converter import auto_convert_checkpoints
+        from lora_trainer.utils.sampler import get_random_sample_prompt
+        from lora_trainer.utils.colab_utils import auto_disconnect
+
+
 if __name__ == "__main__":
     unittest.main()
