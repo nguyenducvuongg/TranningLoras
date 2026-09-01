@@ -94,6 +94,34 @@ class TestConfigBuilders(unittest.TestCase):
         self.assertIn("wan_cache_latents.py", cache_latents_cmd)
         self.assertIn("--i2v", cache_latents_cmd)
 
+    def test_musubi_image_dataset_captions(self):
+        img_dir = os.path.join(self.temp_dir, "train_imgs")
+        os.makedirs(img_dir, exist_ok=True)
+        img_file = os.path.join(img_dir, "sample_1.png")
+        with open(img_file, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
+
+        builder = MusubiConfigBuilder(
+            model_name="Krea2-Raw",
+            output_dir=os.path.join(self.temp_dir, "output"),
+            output_name="krea_test",
+        )
+        toml_path = os.path.join(self.temp_dir, "dataset.toml")
+        builder.build_dataset_toml(
+            dataset_path=toml_path,
+            resolution=[1024, 1024],
+            image_folders=[{"path": img_dir, "repeats": 1}],
+            caption_extension=".txt",
+        )
+        self.assertTrue(os.path.exists(toml_path))
+        with open(toml_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            self.assertIn('caption_extension = ".txt"', content)
+
+        # Check that missing txt file was automatically created
+        txt_file = os.path.join(img_dir, "sample_1.txt")
+        self.assertTrue(os.path.exists(txt_file))
+
     def test_musubi_flux2_and_qwen_config(self):
         builder_qwen = MusubiConfigBuilder(
             model_name="Qwen-Image-Edit-2509",

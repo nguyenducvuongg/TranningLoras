@@ -90,6 +90,28 @@ def dict_to_cli_args(config_dict: Dict[str, Any]) -> str:
     return " ".join(args)
 
 
+def ensure_dataset_captions(image_folders: List[Dict[str, Any]], default_caption: str = "") -> None:
+    """Đảm bảo mọi ảnh trong tập huấn luyện đều có tệp .txt tương ứng để tránh FileNotFoundError khi nạp dataset."""
+    valid_exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".PNG", ".JPG", ".JPEG", ".WEBP", ".BMP"}
+    for folder in image_folders:
+        dir_path = folder.get("path")
+        if not dir_path or not os.path.exists(dir_path):
+            continue
+        try:
+            for fname in os.listdir(dir_path):
+                fpath = os.path.join(dir_path, fname)
+                if not os.path.isfile(fpath):
+                    continue
+                ext = os.path.splitext(fname)[1]
+                if ext in valid_exts:
+                    txt_path = os.path.splitext(fpath)[0] + ".txt"
+                    if not os.path.exists(txt_path):
+                        with open(txt_path, "w", encoding="utf-8") as f:
+                            f.write(default_caption)
+        except Exception:
+            pass
+
+
 class MusubiConfigBuilder:
     """Xây dựng cấu hình hoàn chỉnh cho Kohya Musubi-Tuner."""
 
@@ -124,6 +146,8 @@ class MusubiConfigBuilder:
         resolution: List[int],
         image_folders: Optional[List[Dict[str, Any]]] = None,
         video_folders: Optional[List[Dict[str, Any]]] = None,
+        caption_extension: str = ".txt",
+        batch_size: int = 1,
         enable_bucket: bool = True,
         bucket_no_upscale: bool = True,
         resize_control: bool = True,
@@ -131,9 +155,17 @@ class MusubiConfigBuilder:
         """
         Sinh file dataset.toml cho Musubi-tuner hỗ trợ đa thư mục ảnh và video.
         """
+        if not caption_extension.startswith("."):
+            caption_extension = f".{caption_extension}"
+
+        if image_folders:
+            ensure_dataset_captions(image_folders)
+
         data_config: Dict[str, Any] = {
             "general": {
                 "resolution": resolution,
+                "caption_extension": caption_extension,
+                "batch_size": batch_size,
                 "enable_bucket": enable_bucket,
                 "bucket_no_upscale": bucket_no_upscale,
             },
