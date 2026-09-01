@@ -217,7 +217,7 @@ class MusubiConfigBuilder:
         if "wan" in arch:
             script = "wan_cache_latents.py"
         elif "kontext" in arch:
-            script = "flux_kontext_cache_latents.py"
+            script = "src/musubi_tuner/flux_cache_latents.py"
         elif "flux2" in arch:
             script = "src/musubi_tuner/flux_2_cache_latents.py"
         elif "qwen" in arch:
@@ -268,7 +268,7 @@ class MusubiConfigBuilder:
             return dict_to_cli_args(cfg)
 
         if "kontext" in arch:
-            script = "flux_kontext_cache_text_encoder_outputs.py"
+            script = "src/musubi_tuner/flux_cache_text_encoder_outputs.py"
         elif "flux2" in arch:
             script = "src/musubi_tuner/flux_2_cache_text_encoder_outputs.py"
         elif "qwen" in arch:
@@ -330,8 +330,12 @@ class MusubiConfigBuilder:
         network_module = "networks.lora"
         if "wan" in arch:
             network_module = "networks.lora_wan"
-        elif "flux" in arch or "kontext" in arch:
+        elif "flux" in arch or "kontext" in arch or "krea" in arch:
             network_module = "networks.lora_flux"
+        elif "qwen" in arch:
+            network_module = "networks.lora_qwen_image"
+        elif "z_image" in arch:
+            network_module = "networks.lora_zimage"
 
         # Cấu hình Accelerate launch
         accel_cfg: Dict[str, Any] = {

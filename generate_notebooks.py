@@ -254,8 +254,8 @@ if engine_type == "musubi":
     clip_vision = weights.get("clip_vision", None)
     dit_path = weights.get("dit", "")
 
-    cache_latents_cmd = builder.build_cache_latents_args(dataset_toml, vae_path, clip_vision)
-    cache_te_cmd = builder.build_cache_text_encoder_args(dataset_toml, clip1_path, clip2_path)
+    cache_latents_cmd = builder.build_cache_latents_args(dataset_toml, vae_path, clip_vision) if vae_path else None
+    cache_te_cmd = builder.build_cache_text_encoder_args(dataset_toml, clip1_path, clip2_path) if clip1_path else None
 
     sample_txt_path = "/content/sample_prompt.txt"
     if Sample_Prompt == "":
