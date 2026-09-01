@@ -13,6 +13,8 @@ from .environment_setup import (
     setup_accelerate_config,
     apply_performance_environment_vars,
     initialize_training_environment,
+    install_all_trainer_dependencies,
+    ALL_TRAINER_DEPENDENCIES,
 )
 
 __all__ = [
@@ -31,4 +33,6 @@ __all__ = [
     "setup_accelerate_config",
     "apply_performance_environment_vars",
     "initialize_training_environment",
+    "install_all_trainer_dependencies",
+    "ALL_TRAINER_DEPENDENCIES",
 ]

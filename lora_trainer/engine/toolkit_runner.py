@@ -34,6 +34,13 @@ def setup_toolkit_repo(toolkit_dir: str = DEFAULT_TOOLKIT_DIR) -> str:
         except Exception:
             pass
 
+    from .environment_setup import install_all_trainer_dependencies
+    try:
+        install_all_trainer_dependencies(quiet=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", toolkit_dir], check=False)
+    except Exception:
+        pass
+
     return toolkit_dir
 
 

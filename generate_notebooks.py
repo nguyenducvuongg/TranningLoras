@@ -665,6 +665,8 @@ else:
 
 %cd /content/ai-toolkit
 !pip install -q -r requirements.txt
+!pip install -q diffusers transformers accelerate safetensors bitsandbytes optimum-quanto torchvision albumentations opencv-python-headless pyyaml toml pillow tqdm scipy wandb tensorboard matplotlib einops imagesize ftfy regex sentencepiece protobuf av imageio imageio-ffmpeg kornia open_clip_torch timm prodigyopt lion-pytorch voluptuous huggingface_hub flatten_json pydantic clean-fid invisible-watermark
+!pip install -q -e .
 !npm --prefix /content/ai-toolkit/ui install
 
 from lora_trainer.utils.colab_utils import launch_colab_proxy

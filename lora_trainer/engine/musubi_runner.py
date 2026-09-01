@@ -35,37 +35,9 @@ def setup_musubi_repo(musubi_dir: str = DEFAULT_MUSUBI_DIR) -> str:
         except Exception:
             pass
 
+    from .environment_setup import install_all_trainer_dependencies
     try:
-        subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "-q",
-                "av",
-                "voluptuous",
-                "imagesize",
-                "einops",
-                "ftfy",
-                "regex",
-                "sentencepiece",
-                "protobuf",
-                "scipy",
-                "wandb",
-                "lion-pytorch",
-                "prodigyopt",
-                "albumentations",
-                "opencv-python-headless",
-                "diffusers",
-                "imageio",
-                "imageio-ffmpeg",
-                "kornia",
-                "open_clip_torch",
-                "timm",
-            ],
-            check=False,
-        )
+        install_all_trainer_dependencies(quiet=True)
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", musubi_dir], check=False)
     except Exception:
         pass

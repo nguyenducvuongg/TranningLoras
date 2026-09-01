@@ -88,15 +88,78 @@ def apply_performance_environment_vars(
     os.environ["PYTHONPATH"] = ":".join(current_paths).strip(":")
 
 
+ALL_TRAINER_DEPENDENCIES = [
+    "torchvision",
+    "transformers>=4.44.0",
+    "diffusers>=0.30.0",
+    "accelerate>=0.33.0",
+    "safetensors>=0.4.4",
+    "bitsandbytes>=0.43.0",
+    "optimum-quanto>=0.2.4",
+    "albumentations>=1.4.0",
+    "opencv-python-headless>=4.8.0",
+    "pyyaml>=6.0",
+    "toml>=0.10.2",
+    "pillow>=10.0.0",
+    "tqdm>=4.66.0",
+    "scipy>=1.11.0",
+    "wandb>=0.16.0",
+    "tensorboard",
+    "matplotlib",
+    "einops>=0.7.0",
+    "imagesize>=1.4.1",
+    "ftfy>=6.1.1",
+    "regex>=2023.10.3",
+    "sentencepiece>=0.1.99",
+    "protobuf>=3.20.0",
+    "av>=11.0.0",
+    "imageio>=2.30.0",
+    "imageio-ffmpeg>=0.4.8",
+    "kornia>=0.7.0",
+    "open_clip_torch>=2.24.0",
+    "timm>=0.9.0",
+    "prodigyopt>=1.0.0",
+    "lion-pytorch>=0.1.2",
+    "voluptuous>=0.13.0",
+    "huggingface_hub>=0.24.0",
+    "flatten_json",
+    "pydantic",
+    "clean-fid",
+    "invisible-watermark",
+    "google-genai",
+    "openai",
+    "ipywidgets",
+]
+
+
+def install_all_trainer_dependencies(quiet: bool = True) -> bool:
+    """Tự động kiểm tra và cài đặt toàn bộ phụ thuộc cho cả Musubi-Tuner và AI-Toolkit."""
+    import subprocess
+    cmd = [sys.executable, "-m", "pip", "install"]
+    if quiet:
+        cmd.append("-q")
+    cmd.extend(ALL_TRAINER_DEPENDENCIES)
+    try:
+        subprocess.run(cmd, check=False)
+        return True
+    except Exception:
+        return False
+
+
 def initialize_training_environment(
     base_drive_dir: str = "/content/drive/MyDrive/TranningLorasData",
+    auto_install_deps: bool = False,
 ) -> Dict[str, Any]:
     """
     Hàm tổng hợp thiết lập toàn bộ môi trường huấn luyện:
-    1. Cấu hình Accelerate config
-    2. Kích hoạt biến môi trường CUDA & VRAM
-    3. Trả về thông tin môi trường
+    1. Cài đặt đầy đủ dependencies nếu yêu cầu
+    2. Cấu hình Accelerate config
+    3. Kích hoạt biến môi trường CUDA & VRAM
+    4. Trả về thông tin môi trường
     """
+    if auto_install_deps:
+        install_all_trainer_dependencies()
+
     apply_performance_environment_vars()
     accel_cfg = setup_accelerate_config()
 
