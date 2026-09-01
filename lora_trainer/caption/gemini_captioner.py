@@ -13,17 +13,29 @@ from tqdm import tqdm
 from .key_manager import get_api_key
 from ..data.cleaner import get_supported_images, get_supported_videos
 
-# Toàn bộ danh sách model Gemini chính thức qua API
+# Toàn bộ danh sách model Gemini chính thức qua API (Thế hệ Gemini 3.x)
 GEMINI_MODELS = {
-    "Gemini-2.5-Pro": "gemini-2.5-pro",
-    "Gemini-2.5-Flash": "gemini-2.5-flash",
-    "Gemini-2.5-Flash-Lite": "gemini-2.5-flash-lite",
-    "Gemini-2.0-Flash": "gemini-2.0-flash",
-    "Gemini-2.0-Flash-Thinking": "gemini-2.0-flash-thinking-exp-01-21",
-    "Gemini-2.0-Pro-Exp": "gemini-2.0-pro-exp-02-05",
-    "Gemini-1.5-Pro": "gemini-1.5-pro",
-    "Gemini-1.5-Flash": "gemini-1.5-flash",
+    "Gemini-3.6-Flash": "gemini-3.6-flash",
+    "Gemini-3.7-Flash": "gemini-3.7-flash",
+    "Gemini-3.5-Flash": "gemini-3.5-flash",
+    "Gemini-3.5-Flash-Lite": "gemini-3.5-flash-lite",
+    "Gemini-3.1-Pro": "gemini-3.1-pro-preview",
+    "Gemini-3-Pro": "gemini-3-pro-preview",
+    # Tương thích ngược và tự động chuyển hướng các model cũ đã deprecated
+    "Gemini-2.0-Flash": "gemini-3.6-flash",
+    "Gemini-2.0-Flash-Lite": "gemini-3.5-flash-lite",
+    "Gemini-2.5-Flash": "gemini-3.6-flash",
+    "Gemini-2.5-Pro": "gemini-3.1-pro-preview",
+    "Gemini-1.5-Pro": "gemini-3.1-pro-preview",
+    "Gemini-1.5-Flash": "gemini-3.6-flash",
+    "gemini-2.0-flash": "gemini-3.6-flash",
+    "gemini-2.5-flash": "gemini-3.6-flash",
+    "gemini-2.5-pro": "gemini-3.1-pro-preview",
+    "gemini-1.5-pro": "gemini-3.1-pro-preview",
+    "gemini-1.5-flash": "gemini-3.6-flash",
 }
+
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 
 # Hướng dẫn độ dài caption
 LENGTH_PROMPTS = {
@@ -61,7 +73,7 @@ TASK_SYSTEM_PROMPTS = {
 def caption_image_gemini(
     image_path: str,
     api_key: Optional[str] = None,
-    model_alias: str = "Gemini-2.5-Flash",
+    model_alias: str = "Gemini-3.6-Flash",
     length_preset: str = "Medium",
     task_mode: str = "General",
     custom_system_prompt: Optional[str] = None,
@@ -93,22 +105,38 @@ def caption_image_gemini(
     else:
         prompt = f"{base_task_prompt} {length_guide} {rules}"
 
-    response = client.models.generate_content(
-        model=model_name,
-        contents=types.Content(
-            parts=[
-                types.Part(text=prompt),
-                types.Part(inline_data=types.Blob(data=image_bytes, mime_type="image/jpeg")),
-            ]
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=types.Content(
+                parts=[
+                    types.Part(text=prompt),
+                    types.Part(inline_data=types.Blob(data=image_bytes, mime_type="image/jpeg")),
+                ]
+            ),
+        )
+    except Exception as e:
+        if "404" in str(e) or "not found" in str(e).lower() or "no longer available" in str(e).lower():
+            # Tự động fallback sang default model mới nhất
+            response = client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL,
+                contents=types.Content(
+                    parts=[
+                        types.Part(text=prompt),
+                        types.Part(inline_data=types.Blob(data=image_bytes, mime_type="image/jpeg")),
+                    ]
+                ),
+            )
+        else:
+            raise e
+
     return response.text.strip() if response.text else ""
 
 
 def caption_video_gemini(
     video_path: str,
     api_key: Optional[str] = None,
-    model_alias: str = "Gemini-2.5-Flash",
+    model_alias: str = "Gemini-3.6-Flash",
     length_preset: str = "Medium",
     custom_system_prompt: Optional[str] = None,
 ) -> str:
@@ -137,22 +165,37 @@ def caption_video_gemini(
     else:
         prompt = f"{base_prompt} {length_guide}"
 
-    response = client.models.generate_content(
-        model=model_name,
-        contents=types.Content(
-            parts=[
-                types.Part(text=prompt),
-                types.Part(inline_data=types.Blob(data=video_bytes, mime_type="video/mp4")),
-            ]
-        ),
-    )
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=types.Content(
+                parts=[
+                    types.Part(text=prompt),
+                    types.Part(inline_data=types.Blob(data=video_bytes, mime_type="video/mp4")),
+                ]
+            ),
+        )
+    except Exception as e:
+        if "404" in str(e) or "not found" in str(e).lower() or "no longer available" in str(e).lower():
+            response = client.models.generate_content(
+                model=DEFAULT_GEMINI_MODEL,
+                contents=types.Content(
+                    parts=[
+                        types.Part(text=prompt),
+                        types.Part(inline_data=types.Blob(data=video_bytes, mime_type="video/mp4")),
+                    ]
+                ),
+            )
+        else:
+            raise e
+
     return response.text.strip() if response.text else ""
 
 
 def batch_caption_gemini(
     folder_path: str,
     api_key: Optional[str] = None,
-    model_alias: str = "Gemini-2.5-Flash",
+    model_alias: str = "Gemini-3.6-Flash",
     length_preset: str = "Medium",
     task_mode: str = "General",
     custom_system_prompt: Optional[str] = None,

@@ -104,7 +104,7 @@ Control_Folder = "" # @param {type:'string'}
 Clean_Data = True # @param {type:'boolean'}
 
 # @markdown 🤖 **Tùy chọn AI Captioning**
-Caption_Engine = "Gemini-2.5-Flash" # @param ["None", "Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Gemini-2.0-Flash", "Gemini-2.0-Flash-Thinking", "Gemini-2.0-Pro-Exp", "Gemini-1.5-Pro", "Gemini-1.5-Flash", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
+Caption_Engine = "Gemini-3.6-Flash" # @param ["None", "Gemini-3.6-Flash", "Gemini-3.7-Flash", "Gemini-3.5-Flash", "Gemini-3.5-Flash-Lite", "Gemini-3.1-Pro", "Gemini-3-Pro", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
 # @markdown 🎯 **Chế độ Prompt chuyên biệt theo mục đích LoRA:**
 Task_Mode = "General" # @param ["General", "Skin_Portrait", "Upscale_Restoration", "Art_Style", "Character_Outfit"]
 Caption_Length = "Medium" # @param ["Short", "Medium", "Long"]
@@ -506,7 +506,7 @@ print("✅ Đã sẵn sàng!")
     create_cell("markdown", "### 📂 Bước 2: AI Captioning Studio"),
     create_cell("code", """# @title ✨ 2. Gán nhãn Tự động
 Dataset_Folder = "/content/drive/MyDrive/My_Dataset" # @param {type:'string'}
-Caption_Engine = "Gemini-2.5-Flash" # @param ["Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-2.5-Flash-Lite", "Gemini-2.0-Flash", "Gemini-2.0-Flash-Thinking", "Gemini-2.0-Pro-Exp", "Gemini-1.5-Pro", "Gemini-1.5-Flash", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
+Caption_Engine = "Gemini-3.6-Flash" # @param ["Gemini-3.6-Flash", "Gemini-3.7-Flash", "Gemini-3.5-Flash", "Gemini-3.5-Flash-Lite", "Gemini-3.1-Pro", "Gemini-3-Pro", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
 Task_Mode = "General" # @param ["General", "Skin_Portrait", "Upscale_Restoration", "Art_Style", "Character_Outfit"]
 Caption_Length = "Medium" # @param ["Short", "Medium", "Long"]
 API_Key = "" # @param {type:'string'}
