@@ -27,13 +27,18 @@ def setup_musubi_repo(musubi_dir: str = DEFAULT_MUSUBI_DIR) -> str:
         except Exception as e:
             print(f"⚠️ Cảnh báo khi update: {e}")
 
-    # Đảm bảo cài đặt các phụ thuộc nếu có file requirements
+    # Đảm bảo cài đặt các phụ thuộc và cài đặt gói musubi-tuner ở chế độ editable
     req_file = os.path.join(musubi_dir, "requirements.txt")
     if os.path.exists(req_file):
         try:
             subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req_file], check=False)
         except Exception:
             pass
+
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", musubi_dir], check=False)
+    except Exception:
+        pass
 
     return musubi_dir
 
@@ -45,9 +50,15 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
     print(f"📂 Thư mục: {cwd}")
     print(f"=======================================================\n")
 
+    env = os.environ.copy()
+    src_dir = os.path.join(cwd, "src")
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}:{cwd}:{existing_pp}".strip(":")
+
     process = subprocess.Popen(
         command_str,
         cwd=cwd,
+        env=env,
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

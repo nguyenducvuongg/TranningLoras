@@ -50,9 +50,14 @@ def run_toolkit_pipeline(config_yaml_path: str, toolkit_dir: str = DEFAULT_TOOLK
     print(f"📂 Thư mục: {toolkit_dir}")
     print(f"=======================================================\n")
 
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{toolkit_dir}:{existing_pp}".strip(":")
+
     process = subprocess.Popen(
         run_cmd,
         cwd=toolkit_dir,
+        env=env,
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
