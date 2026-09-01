@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="lora_trainer",
-    version="1.0.0",
-    description="Universal and Optimized LoRA Training Toolkit for Google Colab (Image & Video)",
+    version="2.0.0",
+    description="Universal & Optimized LoRA Training Suite for Google Colab (SDXL, Pony, Illustrious, SD1.5, SD3.5, FLUX.1/2, Qwen, Z-Image, Krea, Wan Video)",
     author="Nguyen Duc Vuong",
     license="MIT",
     packages=find_packages(),

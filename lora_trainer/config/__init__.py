@@ -1,19 +1,7 @@
-from .model_registry import (
-    MODEL_REGISTRY,
-    VAE_REGISTRY,
-    TEXT_ENCODER_REGISTRY,
-    get_model_info,
-    get_preferred_engine,
-)
-from .musubi_config import MusubiConfigBuilder
-from .toolkit_config import ToolkitConfigBuilder
+"""
+Backward-compatible shim for lora_trainer.config.
+"""
 
-__all__ = [
-    "MODEL_REGISTRY",
-    "VAE_REGISTRY",
-    "TEXT_ENCODER_REGISTRY",
-    "get_model_info",
-    "get_preferred_engine",
-    "MusubiConfigBuilder",
-    "ToolkitConfigBuilder",
-]
+from .model_registry import *
+from .musubi_config import *
+from .toolkit_config import *
