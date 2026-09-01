@@ -157,78 +157,53 @@ def download_file(
 
 
 def download_model_suite(
-    model_name: str, weights_dir: str = "/content/models", hf_token: Optional[str] = None
+    model_name: str,
+    weights_dir: str = "/content/models",
+    hf_token: Optional[str] = None,
+    base_drive_dir: str = "/content/drive/MyDrive/TranningLorasData",
 ) -> Dict[str, str]:
     """
-    Tải toàn bộ bộ trọng số cần thiết (Model, VAE, Text Encoder) cho model đã chọn.
-    Trả về dictionary chứa đường dẫn local của từng thành phần.
+    Quản lý và tải toàn bộ bộ trọng số cần thiết (DiT, VAE, Text Encoder).
+    Tự động kiểm tra và ưu tiên sử dụng các file đã lưu sẵn trên Google Drive để tránh tải lại.
     """
     os.makedirs(weights_dir, exist_ok=True)
     if hf_token:
         os.environ["HF_TOKEN"] = hf_token.strip()
 
-    info = get_model_info(model_name)
+    from .model_storage import scan_model_suite, display_model_cache_dashboard, is_file_complete
+
+    # 1. Hiển thị bảng điều khiển trạng thái các file
+    display_model_cache_dashboard(model_name, base_drive_dir, weights_dir)
+    scan = scan_model_suite(model_name, base_drive_dir, weights_dir)
+
     downloaded_paths = {}
 
-    print(f"\n=======================================================")
-    print(f"📦 BẮT ĐẦU TẢI TRỌNG SỐ CHO: {model_name}")
-    print(f"=======================================================\n")
+    for c in scan["components"]:
+        c_key = c["key"]
+        c_type = c["type"]
+        fname = c["filename"]
+        url = c["url"]
+        fallback_url = c.get("fallback_url")
+        drive_p = c["drive_path"]
+        local_p = c["local_path"]
 
-    # 1. Tải Base DiT Model nếu có download_url
-    if "download_url" in info and info["download_url"]:
-        url = info["download_url"]
-        fb_url = info.get("fallback_url")
-        fname = f"{info['arch']}_{model_name.replace(' ', '_')}.safetensors"
-        dest = os.path.join(weights_dir, fname)
-        print(f"🚀 Đang tải Base DiT Model...")
-        downloaded_paths["dit"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
+        # Nếu đã có trên Google Drive
+        if is_file_complete(drive_p):
+            print(f"✔️ [Kho Google Drive] Đã có sẵn {c_type}: {fname}")
+            downloaded_paths[c_key] = drive_p
+            continue
 
-    # 2. Tải VAE
-    if "vae" in info and info["vae"] in VAE_REGISTRY:
-        vae_key = info["vae"]
-        url = VAE_REGISTRY[vae_key]
-        fb_url = VAE_FALLBACKS.get(vae_key)
-        ext = ".pth" if "pth" in url else ".safetensors"
-        dest = os.path.join(weights_dir, f"{vae_key}{ext}")
-        print(f"🚀 Đang tải VAE ({vae_key})...")
-        downloaded_paths["vae"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
+        # Nếu đã có trên Local SSD
+        if is_file_complete(local_p):
+            print(f"✔️ [Local SSD] Đã có sẵn {c_type}: {fname}")
+            downloaded_paths[c_key] = local_p
+            continue
 
-    # 3. Tải Text Encoder 1
-    if "clip" in info and info["clip"] in TEXT_ENCODER_REGISTRY:
-        te_key = info["clip"]
-        url = TEXT_ENCODER_REGISTRY[te_key]
-        fb_url = TEXT_ENCODER_FALLBACKS.get(te_key)
-        ext = ".pth" if "pth" in url else ".safetensors"
-        dest = os.path.join(weights_dir, f"{te_key}{ext}")
-        print(f"🚀 Đang tải Text Encoder 1 ({te_key})...")
-        downloaded_paths["text_encoder1"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
+        # Chọn đích tải ưu tiên: Google Drive nếu có kết nối, ngược lại là Local SSD
+        target_dest = drive_p if os.path.exists("/content/drive/MyDrive") else local_p
+        print(f"🚀 Đang tải {c_type} ({fname})...")
+        final_path = download_file(url, target_dest, fallback_url=fallback_url, token=hf_token)
+        downloaded_paths[c_key] = final_path
 
-    # 4. Tải Text Encoder 2 (nếu có)
-    if "clip2" in info and info["clip2"] in TEXT_ENCODER_REGISTRY:
-        te2_key = info["clip2"]
-        url = TEXT_ENCODER_REGISTRY[te2_key]
-        fb_url = TEXT_ENCODER_FALLBACKS.get(te2_key)
-        ext = ".pth" if "pth" in url else ".safetensors"
-        dest = os.path.join(weights_dir, f"{te2_key}{ext}")
-        print(f"🚀 Đang tải Text Encoder 2 ({te2_key})...")
-        downloaded_paths["text_encoder2"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
-
-    # 5. Tải Clip Vision (cho I2V)
-    if "clip_vision" in info and info["clip_vision"] in TEXT_ENCODER_REGISTRY:
-        cv_key = info["clip_vision"]
-        url = TEXT_ENCODER_REGISTRY[cv_key]
-        ext = ".pth" if "pth" in url else ".safetensors"
-        dest = os.path.join(weights_dir, f"{cv_key}{ext}")
-        print(f"🚀 Đang tải Clip Vision ({cv_key})...")
-        downloaded_paths["clip_vision"] = download_file(url, dest, token=hf_token)
-
-    # 6. Tải Adapter (cho Z-Image Turbo / De-Turbo)
-    if "adapter" in info and info["adapter"] in TEXT_ENCODER_REGISTRY:
-        ad_key = info["adapter"]
-        url = TEXT_ENCODER_REGISTRY[ad_key]
-        dest = os.path.join(weights_dir, f"{ad_key}.safetensors")
-        print(f"🚀 Đang tải Training Adapter ({ad_key})...")
-        downloaded_paths["adapter"] = download_file(url, dest, token=hf_token)
-
-    print("\n✅ Hoàn tất tải toàn bộ trọng số!")
+    print("\n✅ Hoàn tất kiểm tra & sẵn sàng toàn bộ trọng số!")
     return downloaded_paths

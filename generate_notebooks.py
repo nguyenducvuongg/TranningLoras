@@ -87,6 +87,13 @@ else:
 
 from lora_trainer.engine.hardware import detect_hardware_environment, setup_cuda_environment
 from lora_trainer.caption.key_manager import display_key_vault_dashboard
+from lora_trainer.engine.model_storage import setup_storage_structure
+from lora_trainer.engine.environment_setup import initialize_training_environment
+
+# Khởi tạo cây thư mục chuẩn trên Google Drive (Quét an toàn, bảo lưu 100% dữ liệu có sẵn)
+storage_dirs = setup_storage_structure()
+env_info = initialize_training_environment()
+
 hw_info = detect_hardware_environment()
 
 print("\\n" + "="*60)
@@ -115,7 +122,7 @@ display_key_vault_dashboard()
     create_cell("code", """# @title 📂 2. Cấu hình Dữ liệu & AI Captioning
 # @markdown Nhập đường dẫn thư mục ảnh trên Google Drive:
 
-Train_Folders = "/content/drive/MyDrive/LoRA_Data/MyConcept" # @param {type:'string'}
+Train_Folders = "/content/drive/MyDrive/TranningLorasData/datasets/train_data/my_character" # @param {type:'string'}
 # @markdown 💡 `Control_Folder chỉ dùng khi train LoRA dạng Edit / Inpainting / Xử lý da / Upscale (như FLUX Kontext, Qwen Edit)`
 Control_Folder = "" # @param {type:'string'}
 Clean_Data = True # @param {type:'boolean'}
@@ -133,45 +140,41 @@ Add_Folder_Name = False # @param {type:'boolean'}
 Overwrite_Existing_Captions = False # @param {type:'boolean'}
 
 from lora_trainer.data.cleaner import clean_directory
-from lora_trainer.data.dataset_builder import build_dataset_list, check_folder_stats
-from lora_trainer.data.tag_processor import process_dir_tags, add_folder_name_tags
 from lora_trainer.caption.gemini_captioner import batch_caption_gemini
 from lora_trainer.caption.florence_captioner import batch_caption_florence
-from lora_trainer.caption.joy_captioner import batch_caption_joycaption
+from lora_trainer.caption.joy_captioner import batch_caption_joy
 from lora_trainer.caption.openai_captioner import batch_caption_openai
+from lora_trainer.data.tag_processor import process_dir_tags
 
-folder_list = [f.strip() for f in Train_Folders.split(",") if f.strip()]
-
-for folder in folder_list:
+for t_dir in [d.strip() for d in Train_Folders.split(",") if d.strip()]:
     if Clean_Data:
-        rm_count, valid_count = clean_directory(folder)
-        print(f"🧹 Đã dọn dẹp {rm_count} tệp rác. Còn lại {valid_count} tệp hợp lệ trong {folder}")
+        clean_directory(t_dir)
 
-    # Chạy Captioning (tự động nhận diện và lưu API Key vào Vault)
     if Caption_Engine.startswith("Gemini"):
         batch_caption_gemini(
-            folder,
+            t_dir,
             api_key=API_Key,
             model_alias=Caption_Engine,
-            length_preset=Caption_Length,
             task_mode=Task_Mode,
+            caption_length=Caption_Length,
+            trigger_word=Custom_Trigger_Word or None,
             overwrite=Overwrite_Existing_Captions,
         )
     elif Caption_Engine == "Florence-2":
-        batch_caption_florence(folder, task_preset=Caption_Length, overwrite=Overwrite_Existing_Captions)
+        batch_caption_florence(t_dir, task_mode=Task_Mode, trigger_word=Custom_Trigger_Word or None, overwrite=Overwrite_Existing_Captions)
     elif Caption_Engine == "JoyCaption":
-        batch_caption_joycaption(folder, caption_length=Caption_Length.lower(), overwrite=Overwrite_Existing_Captions)
+        batch_caption_joy(t_dir, task_mode=Task_Mode, trigger_word=Custom_Trigger_Word or None, overwrite=Overwrite_Existing_Captions)
     elif Caption_Engine == "OpenAI-GPT4o":
-        batch_caption_openai(folder, api_key=API_Key, length_preset=Caption_Length, overwrite=Overwrite_Existing_Captions)
+        batch_caption_openai(t_dir, api_key=API_Key, task_mode=Task_Mode, trigger_word=Custom_Trigger_Word or None, overwrite=Overwrite_Existing_Captions)
 
-    if Add_Folder_Name:
-        add_folder_name_tags(folder)
+    if Custom_Trigger_Word or Add_Folder_Name:
+        tag = Custom_Trigger_Word if Custom_Trigger_Word else os.path.basename(t_dir)
+        process_dir_tags(t_dir, tag)
 
-    if Custom_Trigger_Word:
-        process_dir_tags(folder, Custom_Trigger_Word, append=False)
-
-    stats = check_folder_stats(folder)
-    print(f"📊 Thống kê {folder}: {stats.get('total_images', 0)} ảnh, {stats.get('captioned_files', 0)} caption ({stats.get('caption_ratio_pct', 0)}%)")
+if Control_Folder and os.path.exists(Control_Folder):
+    if Clean_Data:
+        clean_directory(Control_Folder)
+    print(f"✅ Thư mục Control đối chiếu: {Control_Folder}")
 """),
 
     create_cell("markdown", """### 🚀 Bước 3: Cấu hình Model & Khởi chạy Huấn luyện
@@ -182,24 +185,24 @@ for folder in folder_list:
 """),
     create_cell("code", """# @title 🛠️ 3. Thiết lập Tham số & Bắt đầu Huấn luyện
 # @markdown 📂 **Thư mục Dữ liệu**:
-Train_Folders = "/content/drive/MyDrive/LoRA_Data/MyConcept" # @param {type:'string'}
+Train_Folders = "/content/drive/MyDrive/TranningLorasData/datasets/train_data/my_character" # @param {type:'string'}
 Control_Folder = "" # @param {type:'string'}
 
-Model_Type = "FLUX.2-klein-base-9B" # @param ["FLUX.2-klein-base-9B", "FLUX.2-klein-base-4B", "Qwen-Image", "Qwen-Image-Edit", "Qwen-Image-Edit-2509", "Qwen-Image-Edit-2511", "Z-Image-Turbo", "Z-Image-Base", "Z-Image-De-Turbo", "FLUX.1-Kontext-dev", "FLUX.1-dev", "FLUX.1-schnell", "Krea2-Raw"]
+Model_Type = "Krea2-Raw" # @param ["Krea2-Raw", "FLUX.1-dev", "FLUX.1-schnell", "FLUX.1-Kontext-dev", "FLUX.2-klein-base-9B", "FLUX.2-klein-base-4B", "Qwen-Image", "Qwen-Image-Edit", "Qwen-Image-Edit-2509", "Qwen-Image-Edit-2511", "Z-Image-Turbo", "Z-Image-Base", "Z-Image-De-Turbo"]
 
-Output_Directory = "/content/drive/MyDrive/LoRA_Outputs" # @param {type:'string'}
-LoRA_Name = "my_awesome_lora" # @param {type:'string'}
+Output_Directory = "/content/drive/MyDrive/TranningLorasData/outputs" # @param {type:'string'}
+LoRA_Name = "my_character_lora" # @param {type:'string'}
 
 Resolution = "1024,1024" # @param {type:'string'}
 Batch_Size = 1 # @param {type:'integer'}
 Learning_Rate = 1e-4 # @param {type:'number'}
-Optimizer = "adamw8bit" # @param ["adamw8bit", "adamw", "adafactor"]
-LR_Scheduler = "constant" # @param ["constant", "cosine", "linear", "polynomial"]
+Optimizer = "adamw8bit" # @param ["adamw8bit", "adamw", "lion8bit", "prodigy"]
+LR_Scheduler = "constant" # @param ["constant", "cosine", "linear"]
 Network_Dim = 32 # @param {type:'integer'}
 Network_Alpha = 16 # @param {type:'integer'}
 
-Max_Train_Epochs = 10 # @param {type:'integer'}
-Save_Every_N_Epochs = 2 # @param {type:'integer'}
+Max_Train_Epochs = 8 # @param {type:'integer'}
+Save_Every_N_Epochs = 1 # @param {type:'integer'}
 Sample_Every_N_Steps = 200 # @param {type:'integer'}
 Sample_Prompt = "" # @param {type:'string'}
 
@@ -210,7 +213,7 @@ WandB_API_Key = "" # @param {type:'string'}
 Auto_Disconnect = False # @param {type:'boolean'}
 
 import os
-from lora_trainer.config.model_registry import get_model_info, get_preferred_engine
+from lora_trainer.config.model_registry import get_preferred_engine
 from lora_trainer.config.musubi_config import MusubiConfigBuilder
 from lora_trainer.config.toolkit_config import ToolkitConfigBuilder
 from lora_trainer.engine.downloader import download_model_suite
@@ -229,8 +232,13 @@ datasets = build_dataset_list(Train_Folders, Control_Folder)
 engine_type = get_preferred_engine(Model_Type)
 print(f"🎯 Mô hình: {Model_Type} | Engine tối ưu: {engine_type.upper()}")
 
-# Tải trước các trọng số cần thiết (tự động hỗ trợ HF Token từ Vault hoặc Mirror công khai)
-weights = download_model_suite(Model_Type, weights_dir="/content/models", hf_token=HF_Token)
+# Tải trước các trọng số cần thiết (Tự động ưu tiên kho lưu trữ vĩnh viễn trên Google Drive)
+weights = download_model_suite(
+    Model_Type,
+    weights_dir="/content/models",
+    hf_token=HF_Token,
+    base_drive_dir="/content/drive/MyDrive/TranningLorasData",
+)
 
 if engine_type == "musubi":
     builder = MusubiConfigBuilder(
@@ -369,6 +377,13 @@ else:
 
 from lora_trainer.engine.hardware import detect_hardware_environment
 from lora_trainer.caption.key_manager import display_key_vault_dashboard
+from lora_trainer.engine.model_storage import setup_storage_structure
+from lora_trainer.engine.environment_setup import initialize_training_environment
+
+# Khởi tạo cây thư mục chuẩn trên Google Drive (Quét an toàn, bảo lưu 100% dữ liệu có sẵn)
+storage_dirs = setup_storage_structure()
+env_info = initialize_training_environment()
+
 hw = detect_hardware_environment()
 print(f"🚀 GPU: {{hw['gpu_name']}} | VRAM: {{hw['vram_gb']}} GB")
 display_key_vault_dashboard()
@@ -376,7 +391,7 @@ display_key_vault_dashboard()
 
     create_cell("markdown", "### 📂 Bước 2: Dữ liệu Video, Frame Slicing & AI Captioning"),
     create_cell("code", """# @title 📂 2. Xử lý Dữ liệu Video & Cắt Frame
-Video_Folders = "/content/drive/MyDrive/LoRA_Video_Data" # @param {type:'string'}
+Video_Folders = "/content/drive/MyDrive/TranningLorasData/datasets/train_data/my_video_data" # @param {type:'string'}
 
 # @markdown 🎞️ **Cấu hình Trích xuất Khung hình (Frame Extraction)**
 Frame_Extraction = "chunk" # @param ["chunk", "slide", "uniform", "head", "full"]
@@ -409,7 +424,7 @@ for v_dir in [d.strip() for d in Video_Folders.split(",") if d.strip()]:
     create_cell("markdown", "### 🚀 Bước 3: Cấu hình Wan & Bắt đầu Huấn luyện"),
     create_cell("code", """# @title 🛠️ 3. Cấu hình Wan 2.1 / Wan 2.2 & Bắt đầu Huấn luyện
 # @markdown 📂 **Thư mục Dữ liệu Video**:
-Video_Folders = "/content/drive/MyDrive/LoRA_Video_Data" # @param {type:'string'}
+Video_Folders = "/content/drive/MyDrive/TranningLorasData/datasets/train_data/my_video_data" # @param {type:'string'}
 Frame_Extraction = "chunk" # @param ["chunk", "slide", "uniform", "head", "full"]
 Target_Frames = "25" # @param {type:'string'}
 Frame_Stride = 1 # @param {type:'integer'}
@@ -418,7 +433,7 @@ Max_Frames = 33 # @param {type:'integer'}
 
 Model_Type = "Wan2.2-T2V-14B" # @param ["Wan2.1-T2V-14B", "Wan2.1-I2V-14B-720P", "Wan2.1-I2V-14B-480P", "Wan2.1-T2V-1.3B", "Wan2.2-T2V-14B", "Wan2.2-I2V-14B"]
 
-Output_Directory = "/content/drive/MyDrive/LoRA_Video_Outputs" # @param {type:'string'}
+Output_Directory = "/content/drive/MyDrive/TranningLorasData/outputs" # @param {type:'string'}
 LoRA_Name = "my_video_lora" # @param {type:'string'}
 
 Resolution = "720,1280" # @param {type:'string'}
@@ -447,7 +462,12 @@ from lora_trainer.utils.colab_utils import auto_disconnect
 res = [int(x.strip()) for x in Resolution.split(",")]
 tf = [int(x.strip()) for x in Target_Frames.split(",")]
 
-weights = download_model_suite(Model_Type, weights_dir="/content/models", hf_token=HF_Token)
+weights = download_model_suite(
+    Model_Type,
+    weights_dir="/content/models",
+    hf_token=HF_Token,
+    base_drive_dir="/content/drive/MyDrive/TranningLorasData",
+)
 
 builder = MusubiConfigBuilder(
     model_name=Model_Type,

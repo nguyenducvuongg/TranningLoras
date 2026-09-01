@@ -242,5 +242,80 @@ class TestKeyManager(unittest.TestCase):
         self.assertEqual(get_api_key("huggingface"), "hf_test_token_12345")
 
 
+class TestModelStorage(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.drive_root = os.path.join(self.temp_dir, "TranningLorasData")
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_setup_storage_structure_safe(self):
+        from lora_trainer.engine.model_storage import setup_storage_structure
+
+        folders = setup_storage_structure(self.drive_root)
+        self.assertTrue(os.path.exists(folders["train_data"]))
+        self.assertTrue(os.path.exists(folders["control_data"]))
+        self.assertTrue(os.path.exists(folders["models_dit"]))
+        self.assertTrue(os.path.exists(folders["models_vae"]))
+        self.assertTrue(os.path.exists(folders["outputs_comfy"]))
+
+        # Create a test file in train_data
+        test_file = os.path.join(folders["train_data"], "test_image.txt")
+        with open(test_file, "w") as f:
+            f.write("test_content_keep_safe")
+
+        # Run setup_storage_structure again (second time)
+        folders_again = setup_storage_structure(self.drive_root)
+        # Verify file is not deleted or overwritten
+        self.assertTrue(os.path.exists(test_file))
+        with open(test_file, "r") as f:
+            self.assertEqual(f.read(), "test_content_keep_safe")
+
+    def test_file_completeness_and_scan(self):
+        from lora_trainer.engine.model_storage import is_file_complete, scan_model_suite
+
+        test_f = os.path.join(self.temp_dir, "test_weight.safetensors")
+        with open(test_f, "wb") as f:
+            f.write(b"0" * (1024 * 1024 * 2))  # 2MB
+
+        self.assertTrue(is_file_complete(test_f))
+
+        # Check with aria2 temporary file present
+        aria_f = f"{test_f}.aria2"
+        with open(aria_f, "w") as f:
+            f.write("temp")
+        self.assertFalse(is_file_complete(test_f))
+        os.remove(aria_f)
+
+        scan = scan_model_suite("Krea2-Raw", base_dir=self.drive_root, local_dir=self.temp_dir)
+        self.assertEqual(scan["model_name"], "Krea2-Raw")
+        self.assertGreater(len(scan["components"]), 0)
+
+
+class TestEnvironmentSetup(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_accelerate_config_generation(self):
+        from lora_trainer.engine.environment_setup import setup_accelerate_config, apply_performance_environment_vars
+        import yaml
+
+        custom_cfg = os.path.join(self.temp_dir, "accel_cfg.yaml")
+        setup_accelerate_config(custom_path=custom_cfg, mixed_precision="bf16")
+        self.assertTrue(os.path.exists(custom_cfg))
+
+        with open(custom_cfg, "r") as f:
+            data = yaml.safe_load(f)
+            self.assertEqual(data["mixed_precision"], "bf16")
+            self.assertEqual(data["compute_environment"], "LOCAL_MACHINE")
+
+        apply_performance_environment_vars(musubi_dir=self.temp_dir, toolkit_dir=self.temp_dir)
+        self.assertEqual(os.environ.get("PYTORCH_CUDA_ALLOC_CONF"), "expandable_segments:True")
+
+
 if __name__ == "__main__":
     unittest.main()
