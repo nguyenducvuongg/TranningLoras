@@ -10,7 +10,7 @@ from .key_manager import (
 from .gemini_captioner import caption_image_gemini, caption_video_gemini, batch_caption_gemini
 from .openai_captioner import caption_image_openai, batch_caption_openai
 from .florence_captioner import caption_image_florence, batch_caption_florence
-from .joy_captioner import caption_image_joycaption, batch_caption_joycaption
+from .joy_captioner import caption_image_joycaption, batch_caption_joycaption, batch_caption_joy
 
 __all__ = [
     "get_api_key",
@@ -29,4 +29,5 @@ __all__ = [
     "batch_caption_florence",
     "caption_image_joycaption",
     "batch_caption_joycaption",
+    "batch_caption_joy",
 ]

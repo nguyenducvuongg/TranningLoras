@@ -116,8 +116,11 @@ def batch_caption_joycaption(
     folder_path: str,
     caption_type: str = "Descriptive",
     caption_length: str = "medium-length",
+    task_mode: str = "General",
+    trigger_word: Optional[str] = None,
     overwrite: bool = False,
     device: str = "cuda",
+    **kwargs,
 ) -> int:
     """Chạy batch caption toàn bộ thư mục bằng JoyCaption."""
     images = get_supported_images(folder_path)
@@ -138,6 +141,8 @@ def batch_caption_joycaption(
                 img_path, caption_type=caption_type, caption_length=caption_length, device=device
             )
             if caption:
+                if trigger_word and trigger_word.strip() and trigger_word.lower() not in caption.lower():
+                    caption = f"{trigger_word.strip()}, {caption}"
                 with open(cap_path, "w", encoding="utf-8") as f:
                     f.write(caption + "\n")
                 success_count += 1
@@ -145,3 +150,7 @@ def batch_caption_joycaption(
             print(f"\n[Lỗi JoyCaption {img_path}]: {e}")
 
     return success_count
+
+
+# Alias tương thích
+batch_caption_joy = batch_caption_joycaption

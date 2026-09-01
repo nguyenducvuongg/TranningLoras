@@ -67,16 +67,21 @@ def batch_caption_openai(
     api_key: Optional[str] = None,
     model_name: str = "gpt-4o",
     length_preset: str = "Medium",
+    caption_length: Optional[str] = None,
+    task_mode: str = "General",
+    trigger_word: Optional[str] = None,
     custom_system_prompt: Optional[str] = None,
     overwrite: bool = False,
+    **kwargs,
 ) -> int:
     """Chạy caption hàng loạt ảnh trong thư mục qua OpenAI."""
+    effective_length = caption_length or length_preset or "Medium"
     images = get_supported_images(folder_path)
     if not images:
         return 0
 
     success_count = 0
-    print(f"🚀 Bắt đầu sinh caption qua OpenAI ({model_name}) cho {len(images)} ảnh...")
+    print(f"🚀 Bắt đầu sinh caption qua OpenAI ({model_name}) | Chế độ: {task_mode} cho {len(images)} ảnh...")
 
     for img_path in tqdm(images, desc="OpenAI Captioning"):
         cap_path = os.path.splitext(img_path)[0] + ".txt"
@@ -85,9 +90,11 @@ def batch_caption_openai(
 
         try:
             caption = caption_image_openai(
-                img_path, api_key, model_name, length_preset, custom_system_prompt
+                img_path, api_key, model_name, effective_length, custom_system_prompt
             )
             if caption:
+                if trigger_word and trigger_word.strip() and trigger_word.lower() not in caption.lower():
+                    caption = f"{trigger_word.strip()}, {caption}"
                 with open(cap_path, "w", encoding="utf-8") as f:
                     f.write(caption + "\n")
                 success_count += 1

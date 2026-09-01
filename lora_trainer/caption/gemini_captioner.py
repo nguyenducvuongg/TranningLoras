@@ -197,12 +197,16 @@ def batch_caption_gemini(
     api_key: Optional[str] = None,
     model_alias: str = "Gemini-3.6-Flash",
     length_preset: str = "Medium",
+    caption_length: Optional[str] = None,
     task_mode: str = "General",
+    trigger_word: Optional[str] = None,
     custom_system_prompt: Optional[str] = None,
     overwrite: bool = False,
     is_video_folder: bool = False,
+    **kwargs,
 ) -> int:
     """Chạy batch caption toàn bộ thư mục qua Gemini với task mode chuyên sâu."""
+    effective_length = caption_length or length_preset or "Medium"
     model_name = GEMINI_MODELS.get(model_alias, model_alias)
 
     if is_video_folder:
@@ -228,7 +232,7 @@ def batch_caption_gemini(
                     file_path,
                     api_key=api_key,
                     model_alias=model_alias,
-                    length_preset=length_preset,
+                    length_preset=effective_length,
                     custom_system_prompt=custom_system_prompt,
                 )
             else:
@@ -236,12 +240,14 @@ def batch_caption_gemini(
                     file_path,
                     api_key=api_key,
                     model_alias=model_alias,
-                    length_preset=length_preset,
+                    length_preset=effective_length,
                     task_mode=task_mode,
                     custom_system_prompt=custom_system_prompt,
                 )
 
             if caption:
+                if trigger_word and trigger_word.strip() and trigger_word.lower() not in caption.lower():
+                    caption = f"{trigger_word.strip()}, {caption}"
                 with open(cap_path, "w", encoding="utf-8") as f:
                     f.write(caption + "\n")
                 success_count += 1

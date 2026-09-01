@@ -74,17 +74,22 @@ def caption_image_florence(
 def batch_caption_florence(
     folder_path: str,
     task_preset: str = "Medium",
+    caption_length: Optional[str] = None,
+    task_mode: str = "General",
+    trigger_word: Optional[str] = None,
     overwrite: bool = False,
     device: str = "cuda",
+    **kwargs,
 ) -> int:
     """Chạy batch caption toàn bộ thư mục bằng Florence-2."""
+    effective_length = caption_length or task_preset or "Medium"
     images = get_supported_images(folder_path)
     if not images:
         return 0
 
     load_florence_model(device=device)
     success_count = 0
-    print(f"🚀 Bắt đầu captioning bằng Florence-2 ({task_preset}) cho {len(images)} ảnh...")
+    print(f"🚀 Bắt đầu captioning bằng Florence-2 ({effective_length}) cho {len(images)} ảnh...")
 
     for img_path in tqdm(images, desc="Florence-2 Captioning"):
         cap_path = os.path.splitext(img_path)[0] + ".txt"
@@ -92,8 +97,10 @@ def batch_caption_florence(
             continue
 
         try:
-            caption = caption_image_florence(img_path, task_preset=task_preset, device=device)
+            caption = caption_image_florence(img_path, task_preset=effective_length, device=device)
             if caption:
+                if trigger_word and trigger_word.strip() and trigger_word.lower() not in caption.lower():
+                    caption = f"{trigger_word.strip()}, {caption}"
                 with open(cap_path, "w", encoding="utf-8") as f:
                     f.write(caption + "\n")
                 success_count += 1
