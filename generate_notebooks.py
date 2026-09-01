@@ -128,6 +128,10 @@ Train_Folders = "/content/drive/MyDrive/TranningLorasData/datasets/train_data/my
 Control_Folder = "" # @param {type:'string'}
 Clean_Data = True # @param {type:'boolean'}
 
+# @markdown 🔢 **Chuẩn hóa Tên File (Tự động đổi tên ảnh & caption .txt theo thứ tự 0001, 0002...)**
+Standardize_Dataset_Names = True # @param {type:'boolean'}
+Filename_Prefix = "" # @param {type:'string'}
+
 # @markdown 🤖 **Tùy chọn AI Captioning**
 Caption_Engine = "Gemini-3.6-Flash" # @param ["None", "Gemini-3.6-Flash", "Gemini-3.7-Flash", "Gemini-3.5-Flash", "Gemini-3.5-Flash-Lite", "Gemini-3.1-Pro", "Gemini-3-Pro", "Florence-2", "JoyCaption", "OpenAI-GPT4o"]
 # @markdown 🎯 **Chế độ Prompt chuyên biệt theo mục đích LoRA:**
@@ -141,14 +145,25 @@ Add_Folder_Name = False # @param {type:'boolean'}
 Overwrite_Existing_Captions = False # @param {type:'boolean'}
 
 from lora_trainer.data.cleaner import clean_directory
+from lora_trainer.data.renamer import batch_standardize_datasets
 from lora_trainer.caption.gemini_captioner import batch_caption_gemini
 from lora_trainer.caption.florence_captioner import batch_caption_florence
 from lora_trainer.caption.joy_captioner import batch_caption_joy
 from lora_trainer.caption.openai_captioner import batch_caption_openai
 from lora_trainer.data.tag_processor import process_dir_tags
 
+# 1. Dọn dẹp & Chuẩn hóa tên tệp đồng bộ (Ảnh + Caption + Control)
+if Standardize_Dataset_Names:
+    batch_standardize_datasets(
+        train_folders=Train_Folders,
+        control_folders=Control_Folder if Control_Folder else None,
+        prefix=Filename_Prefix,
+        digits=4,
+        auto_create_txt=True,
+    )
+
 for t_dir in [d.strip() for d in Train_Folders.split(",") if d.strip()]:
-    if Clean_Data:
+    if Clean_Data and not Standardize_Dataset_Names:
         clean_directory(t_dir)
 
     if Caption_Engine.startswith("Gemini"):
@@ -173,7 +188,7 @@ for t_dir in [d.strip() for d in Train_Folders.split(",") if d.strip()]:
         process_dir_tags(t_dir, tag)
 
 if Control_Folder and os.path.exists(Control_Folder):
-    if Clean_Data:
+    if Clean_Data and not Standardize_Dataset_Names:
         clean_directory(Control_Folder)
     print(f"✅ Thư mục Control đối chiếu: {Control_Folder}")
 """),
@@ -631,6 +646,29 @@ elif Action == "Add_Folder_Name":
     add_folder_name_tags(Dataset_Folder)
 
 print("✅ Đã cập nhật xong toàn bộ tag!")
+"""),
+
+    create_cell("markdown", """### 🔢 Bước 4: Chuẩn Hóa Tên Tệp Dataset Tự Động (Renamer Tool)
+💡 Tự động quét và đổi tên toàn bộ ảnh và file `.txt` caption trong thư mục thành dạng chuẩn (VD: `0001.png`, `0001.txt` hoặc `char_0001.jpg`, `char_0001.txt`), đồng thời đồng bộ thư mục Control nếu có.
+"""),
+    create_cell("code", """# @title 🔢 4. Chuẩn Hóa & Đổi Tên Tệp Hàng Loạt
+Train_Folders = "/content/drive/MyDrive/My_Dataset" # @param {type:'string'}
+Control_Folder = "" # @param {type:'string'}
+Filename_Prefix = "" # @param {type:'string'}
+Number_Of_Digits = 4 # @param {type:'integer'}
+Auto_Create_Missing_Captions = True # @param {type:'boolean'}
+Default_Caption_Text = "" # @param {type:'string'}
+
+from lora_trainer.data.renamer import batch_standardize_datasets
+
+batch_standardize_datasets(
+    train_folders=Train_Folders,
+    control_folders=Control_Folder if Control_Folder else None,
+    prefix=Filename_Prefix,
+    digits=Number_Of_Digits,
+    auto_create_txt=Auto_Create_Missing_Captions,
+    default_caption=Default_Caption_Text,
+)
 """)
 ]
 

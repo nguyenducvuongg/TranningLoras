@@ -366,5 +366,64 @@ class TestDownloader(unittest.TestCase):
         self.assertIn("/resolve/main/", converted)
 
 
+class TestRenamer(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.train_dir = os.path.join(self.temp_dir, "train_data")
+        self.ctrl_dir = os.path.join(self.temp_dir, "control_data")
+        os.makedirs(self.train_dir, exist_ok=True)
+        os.makedirs(self.ctrl_dir, exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_standardize_dataset_filenames(self):
+        from lora_trainer.data.renamer import standardize_dataset_filenames, batch_standardize_datasets
+
+        # Tạo file ảnh và caption lộn xộn
+        f1_img = os.path.join(self.train_dir, "photo_b (2).png")
+        f1_txt = os.path.join(self.train_dir, "photo_b (2).txt")
+        f2_img = os.path.join(self.train_dir, "photo_a (1).jpg")
+
+        with open(f1_img, "wb") as f: f.write(b"fake_png_data")
+        with open(f1_txt, "w", encoding="utf-8") as f: f.write("a cute cat sitting on a table")
+        with open(f2_img, "wb") as f: f.write(b"fake_jpg_data")
+
+        # Tạo paired control image
+        c1_img = os.path.join(self.ctrl_dir, "photo_b (2).png")
+        with open(c1_img, "wb") as f: f.write(b"fake_ctrl_data")
+
+        stats = standardize_dataset_filenames(
+            image_folder=self.train_dir,
+            control_folder=self.ctrl_dir,
+            prefix="img_",
+            digits=4,
+            auto_create_txt=True,
+            default_caption="default caption test",
+        )
+
+        self.assertEqual(stats["renamed_images"], 2)
+        self.assertEqual(stats["renamed_captions"], 1)
+        self.assertEqual(stats["created_captions"], 1)
+        self.assertEqual(stats["renamed_controls"], 1)
+
+        # Kiểm tra file đã được đổi tên chuẩn hóa
+        self.assertTrue(os.path.exists(os.path.join(self.train_dir, "img_0001.jpg")))
+        self.assertTrue(os.path.exists(os.path.join(self.train_dir, "img_0001.txt")))
+        self.assertTrue(os.path.exists(os.path.join(self.train_dir, "img_0002.png")))
+        self.assertTrue(os.path.exists(os.path.join(self.train_dir, "img_0002.txt")))
+
+        # Kiểm tra nội dung caption được giữ nguyên
+        with open(os.path.join(self.train_dir, "img_0002.txt"), "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "a cute cat sitting on a table")
+
+        # Kiểm tra caption mẫu được tạo mới
+        with open(os.path.join(self.train_dir, "img_0001.txt"), "r", encoding="utf-8") as f:
+            self.assertEqual(f.read(), "default caption test")
+
+        # Kiểm tra control file được đổi tên đồng bộ
+        self.assertTrue(os.path.exists(os.path.join(self.ctrl_dir, "img_0002.png")))
+
+
 if __name__ == "__main__":
     unittest.main()
