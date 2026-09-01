@@ -1,10 +1,12 @@
 """
 Florence-2 Local AI Captioner
-Mô hình Vision chạy offline miễn phí trực tiếp trên GPU Colab không cần API key.
+Mô hình Vision-Language của Microsoft chạy offline trực tiếp trên GPU Colab, không cần API Key,
+tối ưu hóa tốc độ cao với SDPA attention và cơ chế fallback tự động.
 """
 
 import os
-from typing import Optional, List
+import gc
+from typing import Optional, List, Any
 from PIL import Image
 from tqdm import tqdm
 from ..data.cleaner import get_supported_images
@@ -17,32 +19,70 @@ except ImportError:
 _FLORENCE_MODEL = None
 _FLORENCE_PROCESSOR = None
 
-TASK_PROMPTS = {
+FLORENCE_TASK_PROMPTS = {
     "Short": "<CAPTION>",
     "Medium": "<DETAILED_CAPTION>",
     "Long": "<MORE_DETAILED_CAPTION>",
 }
 
 
-def load_florence_model(model_id: str = "microsoft/Florence-2-large", device: str = "cuda"):
-    """Khởi tạo và tải model Florence-2 vào bộ nhớ GPU."""
+def load_florence_model(
+    model_id: str = "microsoft/Florence-2-large",
+    device: str = "cuda",
+):
+    """Khởi tạo và tải model Florence-2 vào bộ nhớ GPU với cơ chế fallback tự động."""
     global _FLORENCE_MODEL, _FLORENCE_PROCESSOR
-    if _FLORENCE_MODEL is None:
-        import torch
-        from transformers import AutoProcessor, AutoModelForCausalLM
-        
-        print(f"📦 Đang tải Florence-2 Model ({model_id})...")
-        dtype = torch.float16 if device == "cuda" else torch.float32
-        _FLORENCE_MODEL = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            torch_dtype=dtype,
-            trust_remote_code=True,
-        ).to(device)
-        _FLORENCE_PROCESSOR = AutoProcessor.from_pretrained(
-            model_id,
-            trust_remote_code=True,
-        )
-    return _FLORENCE_MODEL, _FLORENCE_PROCESSOR
+    if _FLORENCE_MODEL is not None and _FLORENCE_PROCESSOR is not None:
+        return _FLORENCE_MODEL, _FLORENCE_PROCESSOR
+
+    if torch is None or not torch.cuda.is_available():
+        device = "cpu"
+
+    from transformers import AutoProcessor, AutoModelForCausalLM
+
+    candidates = [
+        model_id,
+        "microsoft/Florence-2-large",
+        "microsoft/Florence-2-base",
+        "thwri/Florence-2-large-FT-DocVQA",
+    ]
+
+    last_error = None
+    dtype = torch.float16 if device == "cuda" else torch.float32
+
+    for cand in candidates:
+        try:
+            print(f"📦 Đang tải Florence-2 Model ({cand})...")
+            try:
+                model = AutoModelForCausalLM.from_pretrained(
+                    cand,
+                    torch_dtype=dtype,
+                    trust_remote_code=True,
+                    attn_implementation="sdpa",
+                ).to(device)
+            except Exception:
+                model = AutoModelForCausalLM.from_pretrained(
+                    cand,
+                    torch_dtype=dtype,
+                    trust_remote_code=True,
+                ).to(device)
+
+            processor = AutoProcessor.from_pretrained(
+                cand,
+                trust_remote_code=True,
+            )
+
+            model.eval()
+            _FLORENCE_MODEL = model
+            _FLORENCE_PROCESSOR = processor
+            print("✅ Đã sẵn sàng Florence-2!")
+            return _FLORENCE_MODEL, _FLORENCE_PROCESSOR
+        except Exception as e:
+            last_error = e
+            print(f"⚠️ Không thể tải {cand}: {e}. Đang thử model fallback...")
+            continue
+
+    raise RuntimeError(f"Không thể khởi tạo Florence-2 từ bất kỳ model nào: {last_error}")
 
 
 def caption_image_florence(
@@ -52,11 +92,23 @@ def caption_image_florence(
 ) -> str:
     """Tạo caption cho 1 ảnh bằng Florence-2."""
     model, processor = load_florence_model(device=device)
-    prompt = TASK_PROMPTS.get(task_preset, "<DETAILED_CAPTION>")
+
+    # Chuẩn hóa prompt
+    preset_key = "Medium"
+    norm_preset = task_preset.capitalize()
+    if norm_preset in FLORENCE_TASK_PROMPTS:
+        preset_key = norm_preset
+    elif "short" in task_preset.lower():
+        preset_key = "Short"
+    elif "long" in task_preset.lower():
+        preset_key = "Long"
+
+    prompt = FLORENCE_TASK_PROMPTS.get(preset_key, "<DETAILED_CAPTION>")
 
     with Image.open(image_path) as img:
         img = img.convert("RGB")
-        inputs = processor(text=prompt, images=img, return_tensors="pt").to(device, torch.float16 if device == "cuda" else torch.float32)
+        dtype = torch.float16 if device == "cuda" else torch.float32
+        inputs = processor(text=prompt, images=img, return_tensors="pt").to(device, dtype)
 
     with torch.inference_mode():
         generated_ids = model.generate(
@@ -96,7 +148,7 @@ def batch_caption_florence(
     success_count = 0
     print(f"🚀 Bắt đầu captioning bằng Florence-2 ({effective_length}) cho {len(images)} ảnh...")
 
-    for img_path in tqdm(images, desc="Florence-2 Captioning"):
+    for i, img_path in enumerate(tqdm(images, desc="Florence-2")):
         cap_path = os.path.splitext(img_path)[0] + ".txt"
         if os.path.exists(cap_path) and not overwrite and os.path.getsize(cap_path) > 0:
             continue
@@ -110,6 +162,11 @@ def batch_caption_florence(
                     f.write(caption + "\n")
                 success_count += 1
         except Exception as e:
-            print(f"\n[Lỗi Florence {img_path}]: {e}")
+            print(f"\n[Lỗi Florence {os.path.basename(img_path)}]: {e}")
+
+        # Định kỳ dọn dẹp GPU cache
+        if (i + 1) % 30 == 0 and torch is not None and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            gc.collect()
 
     return success_count
