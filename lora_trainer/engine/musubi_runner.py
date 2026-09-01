@@ -36,6 +36,28 @@ def setup_musubi_repo(musubi_dir: str = DEFAULT_MUSUBI_DIR) -> str:
             pass
 
     try:
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "-q",
+                "voluptuous",
+                "imagesize",
+                "einops",
+                "ftfy",
+                "regex",
+                "sentencepiece",
+                "protobuf",
+                "scipy",
+                "wandb",
+                "lion-pytorch",
+                "prodigyopt",
+                "albumentations",
+            ],
+            check=False,
+        )
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", musubi_dir], check=False)
     except Exception:
         pass

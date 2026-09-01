@@ -74,7 +74,7 @@ if not os.path.exists('/content/drive'):
     drive.mount('/content/drive')
 
 # Cài đặt các gói phụ thuộc
-!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow ipywidgets
+!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow ipywidgets voluptuous imagesize einops ftfy regex sentencepiece protobuf scipy wandb lion-pytorch prodigyopt albumentations
 
 # Clone / Cập nhật repo chính thức
 if not os.path.exists('/content/TranningLoras'):
@@ -357,7 +357,7 @@ from google.colab import drive
 if not os.path.exists('/content/drive'):
     drive.mount('/content/drive')
 
-!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow av opencv-python-headless
+!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow av opencv-python-headless voluptuous imagesize einops ftfy regex sentencepiece protobuf scipy wandb lion-pytorch prodigyopt albumentations
 
 if not os.path.exists('/content/TranningLoras'):
     !git clone {GITHUB_REPO_URL} /content/TranningLoras
