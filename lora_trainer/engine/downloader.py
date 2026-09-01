@@ -9,7 +9,13 @@ import subprocess
 from typing import Dict, Any, List, Optional
 import requests
 from tqdm import tqdm
-from ..config.model_registry import get_model_info, VAE_REGISTRY, TEXT_ENCODER_REGISTRY
+from ..config.model_registry import (
+    get_model_info,
+    VAE_REGISTRY,
+    VAE_FALLBACKS,
+    TEXT_ENCODER_REGISTRY,
+    TEXT_ENCODER_FALLBACKS,
+)
 from ..caption.key_manager import get_api_key
 
 
@@ -149,28 +155,31 @@ def download_model_suite(
     if "vae" in info and info["vae"] in VAE_REGISTRY:
         vae_key = info["vae"]
         url = VAE_REGISTRY[vae_key]
+        fb_url = VAE_FALLBACKS.get(vae_key)
         ext = ".pth" if "pth" in url else ".safetensors"
         dest = os.path.join(weights_dir, f"{vae_key}{ext}")
         print(f"🚀 Đang tải VAE ({vae_key})...")
-        downloaded_paths["vae"] = download_file(url, dest, token=hf_token)
+        downloaded_paths["vae"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
 
     # 3. Tải Text Encoder 1
     if "clip" in info and info["clip"] in TEXT_ENCODER_REGISTRY:
         te_key = info["clip"]
         url = TEXT_ENCODER_REGISTRY[te_key]
+        fb_url = TEXT_ENCODER_FALLBACKS.get(te_key)
         ext = ".pth" if "pth" in url else ".safetensors"
         dest = os.path.join(weights_dir, f"{te_key}{ext}")
         print(f"🚀 Đang tải Text Encoder 1 ({te_key})...")
-        downloaded_paths["text_encoder1"] = download_file(url, dest, token=hf_token)
+        downloaded_paths["text_encoder1"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
 
     # 4. Tải Text Encoder 2 (nếu có)
     if "clip2" in info and info["clip2"] in TEXT_ENCODER_REGISTRY:
         te2_key = info["clip2"]
         url = TEXT_ENCODER_REGISTRY[te2_key]
+        fb_url = TEXT_ENCODER_FALLBACKS.get(te2_key)
         ext = ".pth" if "pth" in url else ".safetensors"
         dest = os.path.join(weights_dir, f"{te2_key}{ext}")
         print(f"🚀 Đang tải Text Encoder 2 ({te2_key})...")
-        downloaded_paths["text_encoder2"] = download_file(url, dest, token=hf_token)
+        downloaded_paths["text_encoder2"] = download_file(url, dest, fallback_url=fb_url, token=hf_token)
 
     # 5. Tải Clip Vision (cho I2V)
     if "clip_vision" in info and info["clip_vision"] in TEXT_ENCODER_REGISTRY:
