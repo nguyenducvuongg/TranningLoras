@@ -354,5 +354,55 @@ class TestTrainingDashboard(unittest.TestCase):
         self.assertEqual(dash.percent, 100.0)
 
 
+class TestAllRegisteredModels(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_all_29_registered_models_generate_valid_configs(self):
+        from lora_trainer.core.model_registry import MODEL_REGISTRY
+        from lora_trainer.configs.musubi_config import MusubiConfigBuilder
+        from lora_trainer.configs.sdscripts_config import SdScriptsConfigBuilder
+        from lora_trainer.configs.toolkit_config import ToolkitConfigBuilder
+
+        for name, info in MODEL_REGISTRY.items():
+            engine = info.get("engine")
+            arch = info.get("arch", "sdxl")
+
+            if engine == "musubi":
+                b = MusubiConfigBuilder(name, self.temp_dir, "test_lora")
+                toml_path = os.path.join(self.temp_dir, f"{name}.toml")
+                b.build_dataset_toml(toml_path, image_folders=[{"path": self.temp_dir}])
+                cmd = b.build_train_args(toml_path, os.path.join(self.temp_dir, "model.safetensors"))
+                self.assertTrue(len(cmd) > 0)
+                if arch == "krea2":
+                    self.assertIn("--fp8_scaled", cmd)
+                elif "qwen" in arch:
+                    self.assertIn("networks.lora_qwen_image", cmd)
+                elif arch == "z_image":
+                    self.assertIn("networks.lora_zimage", cmd)
+
+            elif engine == "sdscripts":
+                b = SdScriptsConfigBuilder(name, os.path.join(self.temp_dir, "model.safetensors"), self.temp_dir, "test_lora", arch=arch)
+                toml_path = os.path.join(self.temp_dir, f"{name}.toml")
+                b.build_dataset_toml(toml_path, image_folders=[{"path": self.temp_dir}])
+                cmd = b.build_train_args(toml_path)
+                self.assertTrue(len(cmd) > 0)
+                if arch == "sdxl":
+                    self.assertIn("sdxl_train_network.py", cmd)
+                elif arch in ["sd35", "sd3"]:
+                    self.assertIn("sd3_train_network.py", cmd)
+                elif arch == "sd15":
+                    self.assertIn("train_network.py", cmd)
+
+            elif engine == "toolkit":
+                b = ToolkitConfigBuilder(name, self.temp_dir, "test_lora", model_path=os.path.join(self.temp_dir, "model.safetensors"))
+                yaml_path = os.path.join(self.temp_dir, f"{name}.yaml")
+                b.build_yaml_config(yaml_path, dataset_folders=[{"path": self.temp_dir}])
+                self.assertTrue(os.path.exists(yaml_path))
+
+
 if __name__ == "__main__":
     unittest.main()

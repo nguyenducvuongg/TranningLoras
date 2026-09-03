@@ -113,7 +113,7 @@ class ToolkitConfigBuilder:
                 "train_unet": True,
                 "train_text_encoder": False,
                 "gradient_checkpointing": True,
-                "noise_scheduler": "flowmatch",
+                "noise_scheduler": "flowmatch" if ("flux" in arch_name or "sana" in arch_name) else "ddpm",
                 "optimizer": "adamw8bit",
                 "lr": learning_rate,
                 "lr_scheduler": lr_scheduler,
@@ -125,12 +125,13 @@ class ToolkitConfigBuilder:
             },
             "model": {
                 "name_or_path": active_model_path,
+                "arch": arch_name,
                 "is_flux": "flux" in arch_name,
                 "quantize": quantize,
                 "low_vram": low_vram,
             },
             "sample": {
-                "sampler": "flowmatch",
+                "sampler": "flowmatch" if ("flux" in arch_name or "sana" in arch_name) else "euler_a",
                 "sample_every": sample_every,
                 "width": width,
                 "height": height,

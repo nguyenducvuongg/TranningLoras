@@ -287,13 +287,20 @@ class MusubiConfigBuilder:
         if arch in ["flux", "flux_kontext", "flux2"]:
             args.append("--network_module networks.lora_flux")
         elif "qwen" in arch:
-            args.append("--network_module networks.lora_qwen")
+            args.append("--network_module networks.lora_qwen_image")
+            if arch == "qwen_image_edit":
+                args.append("--is_edit")
         elif arch == "z_image":
             args.append("--network_module networks.lora_zimage")
         elif arch == "krea2":
             args.append("--network_module networks.lora_krea")
         else:
             args.append("--network_module networks.lora")
+
+        # Thêm model_version cho các mô hình yêu cầu phân biệt phiên bản (FLUX.2, Qwen-Image)
+        model_version = self.model_info.get("model_version")
+        if model_version:
+            args.append(f"--model_version {model_version}")
 
         if gradient_checkpointing:
             args.append("--gradient_checkpointing")
