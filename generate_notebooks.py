@@ -95,7 +95,7 @@ if not os.path.exists('/content/drive'):
 
 # Cài đặt các gói phụ thuộc & công cụ tải đa luồng aria2
 !apt-get install -y -qq aria2 ffmpeg
-!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow ipywidgets voluptuous imagesize einops ftfy regex sentencepiece protobuf scipy wandb lion-pytorch prodigyopt albumentations opencv-python-headless diffusers open_clip_torch timm
+!pip install -q toml pyyaml python-dotenv bitsandbytes optimum-quanto google-genai openai accelerate safetensors huggingface_hub tqdm pillow ipywidgets voluptuous imagesize einops ftfy regex sentencepiece protobuf scipy wandb lion-pytorch prodigyopt albumentations opencv-python-headless diffusers open_clip_torch timm av easydict
 
 # Clone / Cập nhật repo chính thức
 if not os.path.exists('/content/TranningLoras'):

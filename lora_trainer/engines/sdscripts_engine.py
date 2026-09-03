@@ -67,12 +67,28 @@ class SdScriptsEngine(BaseTrainerEngine):
             except Exception as e:
                 print(f"⚠️ Cảnh báo update sd-scripts: {e}")
 
-        req_file = os.path.join(self.engine_dir, "requirements.txt")
-        if os.path.exists(req_file):
+        core_deps = [
+            "voluptuous",
+            "imagesize",
+            "einops",
+            "ftfy",
+            "albumentations",
+            "opencv-python-headless",
+            "toml",
+        ]
+        missing = []
+        for dep in core_deps:
+            module_name = "cv2" if dep == "opencv-python-headless" else dep
             try:
-                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req_file], check=False)
-            except Exception:
-                pass
+                __import__(module_name)
+            except ImportError:
+                missing.append(dep)
+        if missing:
+            print(f"📦 Đang tự động bổ sung các gói bắt buộc cho sd-scripts: {', '.join(missing)}...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-q"] + missing, check=False)
+            except Exception as e_dep:
+                print(f"⚠️ Cảnh báo cài đặt dependency: {e_dep}")
 
         return self.engine_dir
 

@@ -67,17 +67,20 @@ class ToolkitEngine(BaseTrainerEngine):
             except Exception as e:
                 print(f"⚠️ Cảnh báo update AI-Toolkit: {e}")
 
-        req_file = os.path.join(self.engine_dir, "requirements.txt")
-        if os.path.exists(req_file):
+        core_deps = ["yaml", "safetensors", "diffusers", "transformers"]
+        missing = []
+        for dep in core_deps:
+            module_name = dep
             try:
-                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req_file], check=False)
-            except Exception:
-                pass
-
-        try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", self.engine_dir], check=False)
-        except Exception:
-            pass
+                __import__(module_name)
+            except ImportError:
+                missing.append("pyyaml" if dep == "yaml" else dep)
+        if missing:
+            print(f"📦 Đang tự động bổ sung các gói bắt buộc cho AI-Toolkit: {', '.join(missing)}...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-q"] + missing, check=False)
+            except Exception as e_dep:
+                print(f"⚠️ Cảnh báo cài đặt dependency: {e_dep}")
 
         return self.engine_dir
 

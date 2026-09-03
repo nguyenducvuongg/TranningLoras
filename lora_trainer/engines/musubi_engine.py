@@ -70,15 +70,34 @@ class MusubiEngine(BaseTrainerEngine):
             except Exception as e:
                 print(f"⚠️ Cảnh báo khi update: {e}")
 
-        req_file = os.path.join(self.engine_dir, "requirements.txt")
-        if os.path.exists(req_file):
+        # 1. Đảm bảo các gói phụ thuộc bắt buộc mà musubi-tuner import luôn sẵn sàng (chống lỗi No module named 'av')
+        core_deps = [
+            "av",
+            "easydict",
+            "voluptuous",
+            "einops",
+            "ftfy",
+            "sentencepiece",
+            "opencv-python-headless",
+            "toml",
+        ]
+        missing = []
+        for dep in core_deps:
+            module_name = "cv2" if dep == "opencv-python-headless" else dep
             try:
-                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req_file], check=False)
-            except Exception:
-                pass
+                __import__(module_name)
+            except ImportError:
+                missing.append(dep)
+        if missing:
+            print(f"📦 Đang tự động bổ sung các gói bắt buộc cho Musubi-Tuner: {', '.join(missing)}...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-q"] + missing, check=False)
+            except Exception as e_dep:
+                print(f"⚠️ Cảnh báo cài đặt dependency: {e_dep}")
 
+        # 2. Cài đặt musubi-tuner ở chế độ editable với --no-deps để tránh hạ cấp / xung đột torch
         try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", self.engine_dir], check=False)
+            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--no-deps", "-e", self.engine_dir], check=False)
         except Exception:
             pass
 

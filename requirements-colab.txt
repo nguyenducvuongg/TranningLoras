@@ -15,3 +15,5 @@ controlnet_aux
 huggingface_hub
 accelerate
 safetensors
+av
+easydict

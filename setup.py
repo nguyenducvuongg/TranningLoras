@@ -39,5 +39,7 @@ setup(
         "bitsandbytes>=0.43.0",
         "optimum-quanto>=0.2.0",
         "python-dotenv>=1.0.0",
+        "av>=11.0.0",
+        "easydict>=1.13",
     ],
 )
