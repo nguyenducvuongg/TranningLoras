@@ -50,6 +50,31 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
     return True
 
 
+def sanitize_musubi_toml_from_command(command: Optional[str]):
+    """Tự động kiểm tra và sửa lỗi extra keys (image_dir -> image_directory) trong file dataset TOML trước khi chạy."""
+    if not command:
+        return
+    import re
+    match = re.search(r"--dataset_config\s+['\"]?([^'\"\s]+)['\"]?", command)
+    if not match:
+        return
+    toml_path = match.group(1)
+    if not os.path.exists(toml_path):
+        return
+    try:
+        with open(toml_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        new_content = re.sub(r"(?m)^\s*image_dir\s*=", "image_directory =", content)
+        new_content = re.sub(r"(?m)^\s*control_image_dir\s*=", "control_directory =", new_content)
+        new_content = re.sub(r"(?m)^\s*cache_dir\s*=", "cache_directory =", new_content)
+        if new_content != content:
+            print(f"🛡️ Tự động chuẩn hóa dataset config '{toml_path}' cho Musubi-Tuner (image_dir -> image_directory)...")
+            with open(toml_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+    except Exception as e:
+        print(f"⚠️ Cảnh báo sanitize toml: {e}")
+
+
 class MusubiEngine(BaseTrainerEngine):
     """Adapter thực thi Kohya Musubi-Tuner."""
 
@@ -120,6 +145,11 @@ class MusubiEngine(BaseTrainerEngine):
         3. Accelerate Training
         """
         self.setup_repository()
+
+        # Tự động quét và chuẩn hóa toàn bộ file dataset TOML nếu còn sót image_dir
+        sanitize_musubi_toml_from_command(cache_latents_cmd)
+        sanitize_musubi_toml_from_command(cache_text_encoder_cmd)
+        sanitize_musubi_toml_from_command(train_cmd)
 
         if cache_latents_cmd and not skip_cache:
             print("\n🔹 [GIAI ĐOẠN 1/3]: PRE-CACHE VAE LATENTS...")

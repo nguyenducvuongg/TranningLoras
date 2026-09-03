@@ -40,6 +40,13 @@ def simple_musubi_toml_dump(data: Dict[str, Any]) -> str:
             for k, v in ds.items():
                 if v is None:
                     continue
+                # Chuẩn hóa khóa theo schema bắt buộc của musubi-tuner
+                if k == "image_dir":
+                    k = "image_directory"
+                elif k == "control_image_dir":
+                    k = "control_directory"
+                elif k == "cache_dir":
+                    k = "cache_directory"
                 if isinstance(v, list):
                     lines.append(f"{k} = {v}")
                 elif isinstance(v, bool):

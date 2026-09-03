@@ -222,6 +222,17 @@ if Control_Folder and os.path.exists(Control_Folder):
 - **LoRA Phong cách (Style)**: Chọn `FLUX.2-klein-base-9B` hoặc `Illustrious-XL-v0.1`, Task = `style`.
 """),
     create_cell("code", """# @title 🛠️ 3. Thiết lập Tham số & Bắt đầu Huấn luyện
+# Tự động đồng bộ code mới nhất từ GitHub và làm mới module trong RAM
+import os, sys, subprocess
+if os.path.exists('/content/TranningLoras'):
+    try:
+        subprocess.run(['git', '-C', '/content/TranningLoras', 'pull', '-q'], check=False)
+        for mod in list(sys.modules.keys()):
+            if mod.startswith('lora_trainer'):
+                del sys.modules[mod]
+    except Exception:
+        pass
+
 # @markdown 📂 **Thư mục Dữ liệu**:
 Train_Folders = "/content/drive/MyDrive/TranningLorasData/datasets/train_data/my_character" # @param {type:'string'}
 Control_Folder = "" # @param {type:'string'}

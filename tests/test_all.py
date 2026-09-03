@@ -183,6 +183,17 @@ class TestConfigBuilders(unittest.TestCase):
         self.assertIn("--network_module networks.lora_flux", train_cmd)
         self.assertIn("--sdpa", train_cmd)
 
+        # Test self-healing TOML sanitizer
+        from lora_trainer.engines.musubi_engine import sanitize_musubi_toml_from_command
+        bad_toml = os.path.join(self.temp_dir, "bad.toml")
+        with open(bad_toml, "w") as f:
+            f.write("[[datasets]]\nimage_dir = '/test/dir'\ncontrol_image_dir = '/test/ctrl'\n")
+        sanitize_musubi_toml_from_command(f"python cache.py --dataset_config '{bad_toml}'")
+        with open(bad_toml, "r") as f:
+            fixed_content = f.read()
+        self.assertIn("image_directory = '/test/dir'", fixed_content)
+        self.assertIn("control_directory = '/test/ctrl'", fixed_content)
+
     def test_toolkit_yaml_config(self):
         builder = ToolkitConfigBuilder(
             model_name="FLUX.1-dev",
