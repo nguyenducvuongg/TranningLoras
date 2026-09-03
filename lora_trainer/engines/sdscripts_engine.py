@@ -9,13 +9,14 @@ import sys
 import subprocess
 from typing import Optional
 from ..core.base_engine import BaseTrainerEngine
+from ..ui.dashboard import get_dashboard
 
-SDSCRIPTS_REPO_URL = "https://github.com/kohya-ss/sd-scripts.git"
 DEFAULT_SDSCRIPTS_DIR = "/content/sd-scripts"
+SDSCRIPTS_REPO_URL = "https://github.com/kohya-ss/sd-scripts.git"
 
 
-def execute_command_stream(command_str: str, cwd: str) -> bool:
-    """Thực thi câu lệnh terminal và truyền trực tiếp log ra console."""
+def execute_command_stream(command_str: str, cwd: str, dashboard=None) -> bool:
+    """Thực thi câu lệnh terminal và truyền trực tiếp log ra console & dashboard."""
     print(f"\n=======================================================")
     print(f"💻 ĐANG CHẠY: {command_str}")
     print(f"📂 Thư mục: {cwd}")
@@ -37,10 +38,14 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
         bufsize=1,
     )
 
+    dash = dashboard or get_dashboard()
+
     if process.stdout:
         for line in iter(process.stdout.readline, ""):
             print(line, end="")
             sys.stdout.flush()
+            if dash:
+                dash.update_line(line)
 
     process.wait()
     if process.returncode != 0:
@@ -95,13 +100,13 @@ class SdScriptsEngine(BaseTrainerEngine):
     def is_installed(self) -> bool:
         return os.path.exists(os.path.join(self.engine_dir, "sdxl_train_network.py"))
 
-    def run_training(self, train_command: str) -> bool:
+    def run_training(self, train_command: str, dashboard=None) -> bool:
         """Kích hoạt lệnh huấn luyện."""
         self.setup_repository()
-        return execute_command_stream(train_command, self.engine_dir)
+        return execute_command_stream(train_command, self.engine_dir, dashboard=dashboard)
 
 
-def run_sdscripts_pipeline(train_cmd: str, sdscripts_dir: str = DEFAULT_SDSCRIPTS_DIR) -> bool:
+def run_sdscripts_pipeline(train_cmd: str, sdscripts_dir: str = DEFAULT_SDSCRIPTS_DIR, dashboard=None) -> bool:
     """Hàm tiện ích chạy trực tiếp sd-scripts."""
     engine = SdScriptsEngine(sdscripts_dir)
-    return engine.run_training(train_cmd)
+    return engine.run_training(train_cmd, dashboard=dashboard)

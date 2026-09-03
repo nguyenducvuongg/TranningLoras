@@ -20,6 +20,7 @@ from .musubi_engine import run_musubi_pipeline
 from .toolkit_engine import run_toolkit_pipeline
 from ..utils.prompt_sampler import get_random_sample_prompt
 from ..utils.lora_converter import auto_convert_checkpoints
+from ..ui.dashboard import create_dashboard
 
 
 def run_unified_training(
@@ -124,9 +125,33 @@ def run_unified_training(
     with open(sample_txt_path, "w", encoding="utf-8") as f:
         f.write(f"{clean_sample_prompt} --w {res_list[0]} --h {res_list[1]}\n")
 
+    # 6. Khởi tạo Live Training Dashboard
+    total_effective_images = sum(d.get("image_count", 0) * d.get("repeats", 1) for d in datasets)
+    if total_effective_images == 0:
+        total_effective_images = 20 * 10
+    steps_per_epoch = max(1, math.ceil(total_effective_images / batch_size))
+    approx_total_steps = max(100, max_train_epochs * steps_per_epoch)
+
+    dashboard = create_dashboard(
+        model_name=model_name,
+        engine_name=engine_type,
+        task_type=task_type,
+        lora_name=output_name,
+        total_steps=approx_total_steps,
+        total_epochs=max_train_epochs,
+        output_dir=output_dir,
+        anti_plastic_info={
+            "noise_offset": active_noise_offset,
+            "min_snr": active_min_snr,
+            "no_half_vae": True,
+            "sdpa": True,
+        },
+    )
+    dashboard.render(force=True)
+
     success = False
 
-    # 6. Điều hướng Engine thực thi
+    # 7. Điều hướng Engine thực thi
     if engine_type == "sdscripts":
         builder = SdScriptsConfigBuilder(
             model_name=model_name,
@@ -164,7 +189,15 @@ def run_unified_training(
             no_half_vae=True,
             cache_text_encoder_outputs=should_cache_te,
         )
-        success = run_sdscripts_pipeline(train_cmd)
+        dashboard.skip_stage(1, reason="SDXL VAE On-the-fly")
+        if should_cache_te:
+            dashboard.set_stage(2, "running", "Pre-cache Text Encoder...")
+        else:
+            dashboard.skip_stage(2, reason="Direct TE Embeddings")
+        dashboard.set_stage(3, "running", "Đang tối ưu tham số LoRA...")
+
+        success = run_sdscripts_pipeline(train_cmd, dashboard=dashboard)
+        dashboard.finish(success=success)
 
     elif engine_type == "musubi":
         builder = MusubiConfigBuilder(
@@ -209,15 +242,12 @@ def run_unified_training(
             cache_latents_cmd=cache_latents_cmd,
             cache_text_encoder_cmd=cache_te_cmd,
             train_cmd=train_cmd,
+            dashboard=dashboard,
         )
 
     elif engine_type == "toolkit":
         # Tính toán số bước (steps) chính xác theo dataset
-        total_effective_images = sum(d.get("image_count", 0) * d.get("repeats", 1) for d in datasets)
-        if total_effective_images == 0:
-            total_effective_images = 20
-        steps_per_epoch = max(1, math.ceil(total_effective_images / batch_size))
-        dynamic_steps = max(100, max_train_epochs * steps_per_epoch)
+        dynamic_steps = approx_total_steps
         dynamic_save_every = max(50, save_every_n_epochs * steps_per_epoch)
 
         builder = ToolkitConfigBuilder(
@@ -245,7 +275,7 @@ def run_unified_training(
             quantize=True,
             model_path=weights.get("dit"),
         )
-        success = run_toolkit_pipeline(yaml_path)
+        success = run_toolkit_pipeline(yaml_path, dashboard=dashboard)
 
     # 7. Tự động xuất LoRA ComfyUI Ready nếu cần
     if success and convert_to_comfy:

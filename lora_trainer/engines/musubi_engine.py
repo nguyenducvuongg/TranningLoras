@@ -9,13 +9,14 @@ import sys
 import subprocess
 from typing import Optional
 from ..core.base_engine import BaseTrainerEngine
+from ..ui.dashboard import get_dashboard
 
-MUSUBI_REPO_URL = "https://github.com/kohya-ss/musubi-tuner.git"
 DEFAULT_MUSUBI_DIR = "/content/musubi-tuner"
+MUSUBI_REPO_URL = "https://github.com/kohya-ss/musubi-tuner.git"
 
 
-def execute_command_stream(command_str: str, cwd: str) -> bool:
-    """Thực thi câu lệnh terminal và truyền trực tiếp log ra console."""
+def execute_command_stream(command_str: str, cwd: str, dashboard=None) -> bool:
+    """Thực thi câu lệnh terminal và truyền trực tiếp log ra console & dashboard."""
     print(f"\n=======================================================")
     print(f"💻 ĐANG CHẠY: {command_str}")
     print(f"📂 Thư mục: {cwd}")
@@ -38,10 +39,14 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
         bufsize=1,
     )
 
+    dash = dashboard or get_dashboard()
+
     if process.stdout:
         for line in iter(process.stdout.readline, ""):
             print(line, end="")
             sys.stdout.flush()
+            if dash:
+                dash.update_line(line)
 
     process.wait()
     if process.returncode != 0:
@@ -137,6 +142,7 @@ class MusubiEngine(BaseTrainerEngine):
         cache_text_encoder_cmd: Optional[str] = None,
         train_cmd: Optional[str] = None,
         skip_cache: bool = False,
+        dashboard=None,
     ) -> bool:
         """
         Chạy trọn vẹn 3 giai đoạn của Musubi-Tuner:
@@ -144,6 +150,7 @@ class MusubiEngine(BaseTrainerEngine):
         2. Pre-cache Text Encoders
         3. Accelerate Training
         """
+        dash = dashboard or get_dashboard()
         self.setup_repository()
 
         # Tự động quét và chuẩn hóa toàn bộ file dataset TOML nếu còn sót image_dir
@@ -152,23 +159,41 @@ class MusubiEngine(BaseTrainerEngine):
         sanitize_musubi_toml_from_command(train_cmd)
 
         if cache_latents_cmd and not skip_cache:
+            if dash:
+                dash.set_stage(1, "running", "Đang tính toán VAE Latents...")
             print("\n🔹 [GIAI ĐOẠN 1/3]: PRE-CACHE VAE LATENTS...")
-            ok = execute_command_stream(cache_latents_cmd, self.engine_dir)
+            ok = execute_command_stream(cache_latents_cmd, self.engine_dir, dashboard=dash)
             if not ok:
+                if dash:
+                    dash.finish(success=False, message="Lỗi giai đoạn Pre-cache VAE")
                 return False
+        elif dash:
+            dash.skip_stage(1)
 
         if cache_text_encoder_cmd and not skip_cache:
+            if dash:
+                dash.set_stage(2, "running", "Đang trích xuất Text Embeddings...")
             print("\n🔹 [GIAI ĐOẠN 2/3]: PRE-CACHE TEXT ENCODERS...")
-            ok = execute_command_stream(cache_text_encoder_cmd, self.engine_dir)
+            ok = execute_command_stream(cache_text_encoder_cmd, self.engine_dir, dashboard=dash)
             if not ok:
+                if dash:
+                    dash.finish(success=False, message="Lỗi giai đoạn Pre-cache Text Encoders")
                 return False
+        elif dash:
+            dash.skip_stage(2)
 
         if train_cmd:
+            if dash:
+                dash.set_stage(3, "running", "Đang tối ưu hóa tham số LoRA...")
             print("\n🔹 [GIAI ĐOẠN 3/3]: HUẤN LUYỆN ACCELERATE...")
-            ok = execute_command_stream(train_cmd, self.engine_dir)
+            ok = execute_command_stream(train_cmd, self.engine_dir, dashboard=dash)
             if not ok:
+                if dash:
+                    dash.finish(success=False, message="Lỗi quá trình huấn luyện LoRA")
                 return False
 
+        if dash:
+            dash.finish(success=True)
         print("\n🎉 HUẤN LUYỆN HOÀN TẤT THÀNH CÔNG!")
         return True
 

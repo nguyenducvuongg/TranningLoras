@@ -290,5 +290,50 @@ class TestBackwardCompatibility(unittest.TestCase):
         from lora_trainer.utils.colab_utils import auto_disconnect
 
 
+class TestTrainingDashboard(unittest.TestCase):
+    def test_dashboard_parsing_and_stages(self):
+        from lora_trainer.ui.dashboard import TrainingDashboard, create_dashboard, get_dashboard
+
+        dash = create_dashboard(
+            model_name="Krea2-Raw",
+            engine_name="musubi",
+            task_type="face",
+            lora_name="test_lora",
+            total_steps=1000,
+            total_epochs=10,
+        )
+        self.assertEqual(get_dashboard(), dash)
+        self.assertEqual(dash.status, "INITIALIZING")
+
+        # Test stage changes
+        dash.set_stage(1, "running", "Pre-cache VAE")
+        self.assertEqual(dash.stages[0]["status"], "running")
+
+        dash.set_stage(2, "running", "Pre-cache Text")
+        self.assertEqual(dash.stages[0]["status"], "done")
+        self.assertEqual(dash.stages[1]["status"], "running")
+
+        # Test line parsing
+        tqdm_line = "steps:  25%|██▌       | 250/1000 [03:15<09:45,  1.28it/s, loss=0.0782]"
+        dash.parse_line(tqdm_line)
+        self.assertEqual(dash.percent, 25.0)
+        self.assertEqual(dash.current_step, 250)
+        self.assertEqual(dash.total_steps, 1000)
+        self.assertEqual(dash.speed, "1.28it/s")
+        self.assertAlmostEqual(dash.current_loss, 0.0782, places=4)
+
+        # Test sparkline generation
+        dash.parse_line("loss=0.0650")
+        dash.parse_line("loss=0.0520")
+        sparkline = dash._generate_sparkline()
+        self.assertIn("<svg", sparkline)
+        self.assertIn("<polyline", sparkline)
+
+        # Test completion
+        dash.finish(success=True)
+        self.assertEqual(dash.status, "COMPLETED")
+        self.assertEqual(dash.percent, 100.0)
+
+
 if __name__ == "__main__":
     unittest.main()

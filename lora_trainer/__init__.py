@@ -26,6 +26,7 @@ from .dataset.builder import build_dataset_list
 from .dataset.cleaner import clean_directory
 from .dataset.renamer import batch_standardize_datasets
 from .captioning.gemini import batch_caption_gemini
+from .ui.dashboard import TrainingDashboard, get_dashboard
 
 __all__ = [
     "__version__",
@@ -48,4 +49,6 @@ __all__ = [
     "clean_directory",
     "batch_standardize_datasets",
     "batch_caption_gemini",
+    "TrainingDashboard",
+    "get_dashboard",
 ]
