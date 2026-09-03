@@ -170,6 +170,10 @@ class TestConfigBuilders(unittest.TestCase):
             image_folders=[{"path": self.temp_dir, "repeats": 5}],
         )
         self.assertTrue(os.path.exists(toml_path))
+        with open(toml_path, "r") as f:
+            toml_content = f.read()
+        self.assertIn("image_directory", toml_content)
+        self.assertNotIn("image_dir =", toml_content)
 
         train_cmd = builder.build_train_args(
             dataset_config_path=toml_path,

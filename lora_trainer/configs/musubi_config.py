@@ -151,12 +151,17 @@ class MusubiConfigBuilder:
         if image_folders:
             ensure_dataset_captions(image_folders)
             for f in image_folders:
+                img_path = f.get("path") or f.get("image_dir") or f.get("image_directory")
                 item: Dict[str, Any] = {
-                    "image_dir": f.get("path"),
-                    "num_repeats": f.get("repeats", 1),
+                    "image_directory": img_path,
+                    "num_repeats": f.get("repeats", f.get("num_repeats", 1)),
                 }
-                if f.get("control_path"):
-                    item["control_image_dir"] = f["control_path"]
+                ctrl_path = f.get("control_path") or f.get("control_directory") or f.get("control_image_dir")
+                if ctrl_path:
+                    item["control_directory"] = ctrl_path
+                cache_dir = f.get("cache_dir") or f.get("cache_directory")
+                if cache_dir:
+                    item["cache_directory"] = cache_dir
                 if f.get("resolution"):
                     item["resolution"] = f["resolution"]
                 datasets_list.append(item)
