@@ -221,6 +221,7 @@ def run_musubi_pipeline(
     cache_text_encoder_cmd: Optional[str] = None,
     train_cmd: Optional[str] = None,
     skip_cache: bool = False,
+    dashboard=None,
 ) -> bool:
     """Hàm tiện ích chạy trực tiếp Musubi-Tuner pipeline."""
     engine = MusubiEngine(musubi_dir)
@@ -229,4 +230,5 @@ def run_musubi_pipeline(
         cache_text_encoder_cmd=cache_text_encoder_cmd,
         train_cmd=train_cmd,
         skip_cache=skip_cache,
+        dashboard=dashboard,
     )

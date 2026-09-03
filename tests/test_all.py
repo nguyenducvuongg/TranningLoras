@@ -282,10 +282,16 @@ class TestBackwardCompatibility(unittest.TestCase):
         self.assertTrue(callable(aria2_download))
 
         # 2. engine runners
+        import inspect
         from lora_trainer.engine.musubi_runner import run_musubi_pipeline
         from lora_trainer.engine.toolkit_runner import run_toolkit_pipeline
+        from lora_trainer.engines.sdscripts_engine import run_sdscripts_pipeline
         self.assertTrue(callable(run_musubi_pipeline))
         self.assertTrue(callable(run_toolkit_pipeline))
+        self.assertTrue(callable(run_sdscripts_pipeline))
+        self.assertIn("dashboard", inspect.signature(run_musubi_pipeline).parameters)
+        self.assertIn("dashboard", inspect.signature(run_sdscripts_pipeline).parameters)
+        self.assertIn("dashboard", inspect.signature(run_toolkit_pipeline).parameters)
 
         # 3. config shims
         from lora_trainer.config.model_registry import get_model_info
