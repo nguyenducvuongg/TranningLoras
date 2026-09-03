@@ -236,6 +236,7 @@ def run_unified_training(
             mixed_precision=hw_info["recommended_precision"],
             sample_prompt_file=sample_txt_path,
             sample_every_n_steps=sample_every_n_steps,
+            text_encoder_path=clip1_path,
         )
 
         success = run_musubi_pipeline(

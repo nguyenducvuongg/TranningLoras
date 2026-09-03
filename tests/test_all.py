@@ -184,7 +184,7 @@ class TestConfigBuilders(unittest.TestCase):
         self.assertIn("--sdpa", train_cmd)
 
         # Test self-healing TOML sanitizer
-        from lora_trainer.engines.musubi_engine import sanitize_musubi_toml_from_command
+        from lora_trainer.engines.musubi_engine import sanitize_musubi_toml_from_command, sanitize_musubi_train_command
         bad_toml = os.path.join(self.temp_dir, "bad.toml")
         with open(bad_toml, "w") as f:
             f.write("[[datasets]]\nimage_dir = '/test/dir'\ncontrol_image_dir = '/test/ctrl'\n")
@@ -193,6 +193,25 @@ class TestConfigBuilders(unittest.TestCase):
             fixed_content = f.read()
         self.assertIn("image_directory = '/test/dir'", fixed_content)
         self.assertIn("control_directory = '/test/ctrl'", fixed_content)
+
+        # Test Krea 2 fp8_scaled auto-inclusion
+        krea_builder = MusubiConfigBuilder(
+            model_name="Krea2-Raw",
+            output_dir=os.path.join(self.temp_dir, "output"),
+            output_name="krea_lora",
+        )
+        krea_cmd = krea_builder.build_train_args(
+            dataset_config_path="/content/dataset.toml",
+            dit_model_path="/content/krea2.safetensors",
+            fp8_base=True,
+        )
+        self.assertIn("--fp8_base", krea_cmd)
+        self.assertIn("--fp8_scaled", krea_cmd)
+
+        # Test train_cmd sanitizer auto-injection
+        raw_cmd = "accelerate launch src/musubi_tuner/krea2_train_network.py --fp8_base --dit test.safetensors"
+        sanitized_cmd = sanitize_musubi_train_command(raw_cmd)
+        self.assertIn("--fp8_base --fp8_scaled", sanitized_cmd)
 
     def test_toolkit_yaml_config(self):
         builder = ToolkitConfigBuilder(

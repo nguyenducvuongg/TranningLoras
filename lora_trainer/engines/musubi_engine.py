@@ -80,6 +80,20 @@ def sanitize_musubi_toml_from_command(command: Optional[str]):
         print(f"⚠️ Cảnh báo sanitize toml: {e}")
 
 
+def sanitize_musubi_train_command(command: Optional[str]) -> Optional[str]:
+    """Tự động kiểm tra và bổ sung các cờ bắt buộc cho lệnh huấn luyện Musubi."""
+    if not command:
+        return command
+
+    # Krea 2 fp8 yêu cầu bắt buộc phải truyền --fp8_scaled cùng với --fp8_base
+    if "krea2_train_network.py" in command:
+        if "--fp8_base" in command and "--fp8_scaled" not in command:
+            print("🛡️ Tự động bổ sung cờ bắt buộc '--fp8_scaled' cho Krea 2 fp8_base...")
+            command = command.replace("--fp8_base", "--fp8_base --fp8_scaled")
+
+    return command
+
+
 class MusubiEngine(BaseTrainerEngine):
     """Adapter thực thi Kohya Musubi-Tuner."""
 
@@ -157,6 +171,9 @@ class MusubiEngine(BaseTrainerEngine):
         sanitize_musubi_toml_from_command(cache_latents_cmd)
         sanitize_musubi_toml_from_command(cache_text_encoder_cmd)
         sanitize_musubi_toml_from_command(train_cmd)
+
+        # Tự động chuẩn hóa các cờ bắt buộc cho lệnh training (vd: --fp8_scaled cho Krea 2)
+        train_cmd = sanitize_musubi_train_command(train_cmd)
 
         if cache_latents_cmd and not skip_cache:
             if dash:

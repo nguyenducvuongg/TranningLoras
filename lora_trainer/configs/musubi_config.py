@@ -258,6 +258,7 @@ class MusubiConfigBuilder:
         discrete_flow_shift: Optional[float] = None,
         gradient_checkpointing: bool = True,
         fp8_base: bool = True,
+        text_encoder_path: Optional[str] = None,
     ) -> str:
         """Sinh chuỗi tham số CLI kích hoạt huấn luyện Musubi qua Accelerate."""
         arch = self.model_info.get("arch", "flux_kontext")
@@ -299,6 +300,8 @@ class MusubiConfigBuilder:
 
         if fp8_base:
             args.append("--fp8_base")
+            if arch == "krea2":
+                args.append("--fp8_scaled")
 
         flow_shift = discrete_flow_shift or self.model_info.get("discrete_flow_shift")
         if flow_shift is not None:
@@ -308,8 +311,17 @@ class MusubiConfigBuilder:
         if boundary is not None:
             args.append(f"--timestep_boundary {boundary}")
 
+        if text_encoder_path and os.path.exists(text_encoder_path):
+            if arch in ["flux", "flux_kontext"]:
+                args.append(f"--clip_l '{text_encoder_path}'")
+            else:
+                args.append(f"--text_encoder '{text_encoder_path}'")
+
         if sample_prompt_file and os.path.exists(sample_prompt_file) and sample_every_n_steps:
-            args.append(f"--sample_prompts '{sample_prompt_file}'")
-            args.append(f"--sample_every_n_steps {sample_every_n_steps}")
+            if arch == "krea2" and (not text_encoder_path or not os.path.exists(text_encoder_path)):
+                pass
+            else:
+                args.append(f"--sample_prompts '{sample_prompt_file}'")
+                args.append(f"--sample_every_n_steps {sample_every_n_steps}")
 
         return " ".join(args)
