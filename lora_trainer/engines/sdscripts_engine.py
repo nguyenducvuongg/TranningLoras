@@ -24,6 +24,7 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
     env = os.environ.copy()
     existing_pp = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{cwd}:{existing_pp}".strip(":")
+    env["PYTHONUNBUFFERED"] = "1"
 
     process = subprocess.Popen(
         command_str,
@@ -33,11 +34,13 @@ def execute_command_stream(command_str: str, cwd: str) -> bool:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
+        bufsize=1,
     )
 
-    for line in process.stdout:
-        print(line, end="")
-        sys.stdout.flush()
+    if process.stdout:
+        for line in iter(process.stdout.readline, ""):
+            print(line, end="")
+            sys.stdout.flush()
 
     process.wait()
     if process.returncode != 0:

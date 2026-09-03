@@ -45,19 +45,38 @@ def batch_caption_joy(
         processor = AutoProcessor.from_pretrained(model_id)
         dtype = torch.bfloat16 if (torch.cuda.is_available() and torch.cuda.is_bf16_supported()) else torch.float16
 
+        # Tối ưu hóa 4-bit qua BitsAndBytes cho GPU <= 20GB VRAM (Colab T4 / L4) để chạy cực mượt chỉ ~5.5GB
+        quant_config = None
+        if torch.cuda.is_available():
+            try:
+                from transformers import BitsAndBytesConfig
+                vram_bytes = torch.cuda.get_device_properties(0).total_memory
+                if vram_bytes < 22 * (1024 ** 3):
+                    quant_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=torch.float16,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_use_double_quant=True,
+                    )
+                    print("⚡ JoyCaption: Đã kích hoạt 4-bit NF4 Quantization tối ưu VRAM cho Colab!")
+            except Exception:
+                pass
+
         # Thử nạp với LlavaForConditionalGeneration (chuẩn cho LLaVA architecture)
         try:
             from transformers import LlavaForConditionalGeneration
             model = LlavaForConditionalGeneration.from_pretrained(
                 model_id,
-                torch_dtype=dtype,
+                torch_dtype=dtype if not quant_config else None,
+                quantization_config=quant_config,
                 device_map="auto" if torch.cuda.is_available() else None,
             )
         except Exception:
             from transformers import AutoModelForVision2Seq
             model = AutoModelForVision2Seq.from_pretrained(
                 model_id,
-                torch_dtype=dtype,
+                torch_dtype=dtype if not quant_config else None,
+                quantization_config=quant_config,
                 device_map="auto" if torch.cuda.is_available() else None,
             )
 

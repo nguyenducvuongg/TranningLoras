@@ -15,11 +15,10 @@ from lora_trainer.core.hardware import detect_hardware_environment
 from lora_trainer.core.key_vault import save_api_key, get_api_key, load_api_vault, mask_key
 from lora_trainer.storage.drive_manager import setup_storage_structure, is_file_complete, get_model_component_paths
 from lora_trainer.storage.downloader import prepare_download_url
-from lora_trainer.dataset.cleaner import clean_directory, get_supported_images, get_supported_videos
+from lora_trainer.dataset.cleaner import clean_directory, get_supported_images
 from lora_trainer.dataset.renamer import standardize_single_folder, batch_standardize_datasets
 from lora_trainer.dataset.tagger import process_tags, read_text_file, process_dir_tags, add_folder_name_tags
-from lora_trainer.dataset.builder import parse_folder_steps, build_dataset_list, check_folder_stats
-from lora_trainer.dataset.video_tools import calculate_bucket_resolution
+from lora_trainer.dataset.builder import parse_folder_steps, build_dataset_list, check_folder_stats, calculate_bucket_resolution
 from lora_trainer.captioning.base_captioner import build_task_prompt
 from lora_trainer.configs.sdscripts_config import SdScriptsConfigBuilder
 from lora_trainer.configs.musubi_config import MusubiConfigBuilder, dict_to_cli_args
@@ -38,30 +37,32 @@ class TestModelRegistry(unittest.TestCase):
         self.assertIn("Realistic-Vision-v5.1", MODEL_REGISTRY)
         # SD 3.5
         self.assertIn("SD3.5-Large", MODEL_REGISTRY)
-        # Flux & Video
-        self.assertIn("Wan2.1-T2V-14B", MODEL_REGISTRY)
-        self.assertIn("Wan2.2-I2V-14B", MODEL_REGISTRY)
+        # Flux & Next-Gen DiTs
         self.assertIn("FLUX.1-dev", MODEL_REGISTRY)
         self.assertIn("FLUX.2-klein-base-9B", MODEL_REGISTRY)
+        self.assertIn("Qwen-Image", MODEL_REGISTRY)
         self.assertIn("Qwen-Image-Edit", MODEL_REGISTRY)
         self.assertIn("Z-Image-Turbo", MODEL_REGISTRY)
         self.assertIn("Krea2-Raw", MODEL_REGISTRY)
+        # Verify Video Models are removed
+        self.assertNotIn("Wan2.1-T2V-14B", MODEL_REGISTRY)
+        self.assertNotIn("Wan2.2-I2V-14B", MODEL_REGISTRY)
 
     def test_get_model_info_fuzzy(self):
         info = get_model_info("pony-diffusion-v6-xl")
         self.assertEqual(info["arch"], "sdxl")
         self.assertEqual(info["engine"], "sdscripts")
 
-        info_wan = get_model_info("wan22-t2v-14b")
-        self.assertEqual(info_wan["arch"], "wan22")
-        self.assertTrue(info_wan["supports_video"])
+        info_qwen = get_model_info("qwen-image-edit")
+        self.assertEqual(info_qwen["arch"], "qwen_image_edit")
+        self.assertEqual(info_qwen["type"], "image")
 
     def test_preferred_engine(self):
         self.assertEqual(get_preferred_engine("Pony-Diffusion-V6-XL"), "sdscripts")
         self.assertEqual(get_preferred_engine("SDXL-Base-1.0"), "sdscripts")
         self.assertEqual(get_preferred_engine("FLUX.1-dev"), "toolkit")
-        self.assertEqual(get_preferred_engine("Wan2.1-T2V-14B"), "musubi")
         self.assertEqual(get_preferred_engine("Qwen-Image"), "musubi")
+        self.assertEqual(get_preferred_engine("FLUX.2-klein-base-9B"), "musubi")
 
     def test_custom_model_resolution(self):
         custom_info = get_model_info("Custom-Model", custom_download_url="https://civitai.com/api/download/models/12345")
@@ -82,6 +83,8 @@ class TestHardwareAndVault(unittest.TestCase):
         self.assertIn("gpu_name", hw)
         self.assertIn("recommended_precision", hw)
         self.assertIn("recommended_batch_size", hw)
+        self.assertIn("recommended_noise_offset", hw)
+        self.assertIn("recommended_min_snr_gamma", hw)
 
     def test_key_vault_save_load(self):
         save_api_key("gemini", "AIzaSyTestKey123", label="test_key", vault_path=self.vault_file)
@@ -142,32 +145,39 @@ class TestConfigBuilders(unittest.TestCase):
             network_dim=32,
             network_alpha=16,
             max_train_epochs=10,
+            noise_offset=0.06,
+            min_snr_gamma=5,
+            no_half_vae=True,
         )
         self.assertIn("sdxl_train_network.py", train_cmd)
         self.assertIn("--network_dim 32", train_cmd)
         self.assertIn("--network_alpha 16", train_cmd)
+        self.assertIn("--sdpa", train_cmd)
+        self.assertIn("--noise_offset 0.06", train_cmd)
+        self.assertIn("--min_snr_gamma 5", train_cmd)
+        self.assertIn("--no_half_vae", train_cmd)
 
-    def test_musubi_wan_config(self):
+    def test_musubi_dit_config(self):
         builder = MusubiConfigBuilder(
-            model_name="Wan2.1-T2V-14B",
+            model_name="FLUX.2-klein-base-9B",
             output_dir=os.path.join(self.temp_dir, "output"),
-            output_name="wan_lora",
+            output_name="flux2_lora",
         )
         toml_path = os.path.join(self.temp_dir, "musubi_dataset.toml")
         builder.build_dataset_toml(
             dataset_path=toml_path,
-            resolution=[720, 1280],
-            video_folders=[{"path": self.temp_dir, "repeats": 5}],
+            resolution=[1024, 1024],
+            image_folders=[{"path": self.temp_dir, "repeats": 5}],
         )
         self.assertTrue(os.path.exists(toml_path))
 
         train_cmd = builder.build_train_args(
             dataset_config_path=toml_path,
-            dit_model_path="/content/models/wan.safetensors",
+            dit_model_path="/content/models/flux2.safetensors",
             learning_rate=1e-4,
         )
-        self.assertIn("wan_train_network.py", train_cmd)
-        self.assertIn("--network_module networks.lora_wan", train_cmd)
+        self.assertIn("--network_module networks.lora_flux", train_cmd)
+        self.assertIn("--sdpa", train_cmd)
 
     def test_toolkit_yaml_config(self):
         builder = ToolkitConfigBuilder(
@@ -207,9 +217,27 @@ class TestDatasetAndCaptioning(unittest.TestCase):
         self.assertEqual(h % 64, 0)
 
     def test_build_task_prompt(self):
-        prompt = build_task_prompt("Skin_Portrait", "Short", trigger_word="civit_face")
-        self.assertIn("civit_face", prompt)
-        self.assertIn("skin", prompt.lower())
+        prompt_skin = build_task_prompt("Skin_Portrait", "Short", trigger_word="civit_face")
+        self.assertIn("civit_face", prompt_skin)
+        self.assertIn("skin", prompt_skin.lower())
+
+        prompt_face = build_task_prompt("Face_Likeness", "Medium", trigger_word="my_char")
+        self.assertIn("my_char", prompt_face)
+        self.assertIn("likeness", prompt_face.lower())
+
+        prompt_prod = build_task_prompt("Product_Commercial", "Long", trigger_word="brand_item")
+        self.assertIn("brand_item", prompt_prod)
+        self.assertIn("product", prompt_prod.lower())
+
+    def test_generate_accelerate_config(self):
+        from lora_trainer.core.hardware import generate_accelerate_config
+        cfg_path = os.path.join(self.temp_dir, "accelerate.yaml")
+        generate_accelerate_config(output_path=cfg_path, precision="bf16", num_processes=1)
+        self.assertTrue(os.path.exists(cfg_path))
+        with open(cfg_path, "r") as f:
+            content = f.read()
+        self.assertIn("mixed_precision: bf16", content)
+        self.assertIn("num_processes: 1", content)
 
 
 class TestBackwardCompatibility(unittest.TestCase):

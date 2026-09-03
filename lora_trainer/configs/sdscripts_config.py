@@ -151,8 +151,11 @@ class SdScriptsConfigBuilder:
         cache_latents_to_disk: bool = True,
         cache_text_encoder_outputs: bool = False,
         network_module: str = "networks.lora",
+        noise_offset: Optional[float] = 0.06,
+        min_snr_gamma: Optional[int] = 5,
+        no_half_vae: bool = True,
     ) -> str:
-        """Sinh chuỗi tham số dòng lệnh CLI cho sd-scripts."""
+        """Sinh chuỗi tham số dòng lệnh CLI cho sd-scripts với bộ lọc chống nhựa và tối ưu VRAM."""
         # Chọn script tương ứng
         if self.arch == "sdxl":
             script_name = "sdxl_train_network.py"
@@ -181,7 +184,18 @@ class SdScriptsConfigBuilder:
             f"--train_batch_size {batch_size}",
             f"--mixed_precision {mixed_precision}",
             f"--save_precision {save_precision}",
+            "--sdpa",  # PyTorch Scaled Dot-Product Attention (Chống OOM & tăng tốc độ)
         ]
+
+        # Bộ lọc chống 'da nhựa / AI gloss' & tăng likeness 100%
+        if noise_offset and noise_offset > 0:
+            args.append(f"--noise_offset {noise_offset}")
+
+        if min_snr_gamma and min_snr_gamma > 0:
+            args.append(f"--min_snr_gamma {min_snr_gamma}")
+
+        if self.arch == "sdxl" and no_half_vae:
+            args.append("--no_half_vae")
 
         if text_encoder_lr and not cache_text_encoder_outputs:
             args.append(f"--text_encoder_lr {text_encoder_lr}")

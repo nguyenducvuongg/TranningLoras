@@ -37,7 +37,7 @@ def caption_single_image_gemini(
     models_to_try = list(dict.fromkeys([model_name, "gemini-2.0-flash", "gemini-1.5-flash"]))
 
     try:
-        img = Image.open(image_path)
+        img = Image.open(image_path).convert("RGB")
     except Exception as e:
         print(f"⚠️ Không thể mở ảnh {os.path.basename(image_path)}: {e}")
         return ""
@@ -54,7 +54,9 @@ def caption_single_image_gemini(
             except Exception as e:
                 err_str = str(e)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                    time.sleep(2 * (attempt + 1))
+                    wait_time = 4 * (attempt + 1)
+                    print(f"⏳ Gemini Rate limit (429), chờ {wait_time}s...")
+                    time.sleep(wait_time)
                 elif "404" in err_str or "NOT_FOUND" in err_str:
                     break  # Thử model tiếp theo
                 else:

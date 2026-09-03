@@ -10,17 +10,27 @@ TASK_PROMPT_PRESETS: Dict[str, str] = {
         "Describe the image in a concise, precise, and descriptive natural language paragraph. "
         "Focus on the main subject, background, lighting, artistic style, and key elements."
     ),
+    "Face_Likeness": (
+        "Describe the clothing, hairstyle, hair color, pose, gaze direction, camera perspective, lighting, and background environment in detail. "
+        "Crucially: Do NOT describe the person's unique facial features, eye shape, nose, mouth, lips, or facial contours, "
+        "ensuring the LoRA trigger word captures 100% of the individual's facial likeness and biometric identity without leakage."
+    ),
+    "Product_Commercial": (
+        "Describe the commercial scene, studio lighting reflections, pedestal or surface material, composition, background environment, and product category. "
+        "Do NOT describe the proprietary shape, unique logo, trademark emblems, or specific brand markings in generic terms, "
+        "allowing the trigger word to capture 100% of the authentic product geometry and branding."
+    ),
     "Skin_Portrait": (
         "Focus strictly on high-detail facial texture, skin micro-details, blemishes, pores, natural wrinkles, "
-        "lighting on the face, eye reflections, and realistic human features. "
-        "Do not over-describe unrelated distant background."
+        "subsurface scattering, realistic lighting on the face, eye reflections, and authentic non-plastic human skin features. "
+        "Avoid over-smoothing or airbrushed descriptions."
     ),
     "Character_Outfit": (
         "Describe the pose, clothing, outfit details, fabric texture, accessories, background environment, and camera angle. "
         "Do not describe the person's specific facial features or facial identity, so the model learns to associate the identity with the trigger word."
     ),
     "Art_Style": (
-        "Describe the subject and composition clearly, but completely omit mentioning the art style, medium, or artist name. "
+        "Describe the subject, colors, and composition clearly, but completely omit mentioning the art style, medium, or artist name. "
         "The model must learn the style purely through the trigger word."
     ),
     "Upscale_Restoration": (

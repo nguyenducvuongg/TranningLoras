@@ -7,7 +7,6 @@ bitsandbytes
 optimum-quanto
 google-genai
 openai
-av
 opencv-python-headless
 lycoris-lora
 k-diffusion

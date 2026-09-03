@@ -130,11 +130,10 @@ class MusubiConfigBuilder:
         dataset_path: str,
         resolution: Optional[List[int]] = None,
         image_folders: Optional[List[Dict[str, Any]]] = None,
-        video_folders: Optional[List[Dict[str, Any]]] = None,
         caption_extension: str = ".txt",
         batch_size: int = 1,
     ) -> str:
-        """Sinh tệp dataset TOML cho Musubi-Tuner."""
+        """Sinh tệp dataset TOML cho Image DiT models trong Musubi-Tuner."""
         res = resolution if resolution else self.model_info.get("default_resolution", [1024, 1024])
         if len(res) == 1:
             res = [res[0], res[0]]
@@ -162,21 +161,6 @@ class MusubiConfigBuilder:
                     item["resolution"] = f["resolution"]
                 datasets_list.append(item)
 
-        if video_folders:
-            for v in video_folders:
-                item = {
-                    "video_dir": v.get("path"),
-                    "num_repeats": v.get("repeats", 1),
-                    "frame_extraction": v.get("frame_extraction", "slide"),
-                    "target_frames": v.get("target_frames", [25]),
-                    "frame_stride": v.get("frame_stride", 1),
-                }
-                if v.get("control_path"):
-                    item["control_video_dir"] = v["control_path"]
-                if v.get("resolution"):
-                    item["resolution"] = v["resolution"]
-                datasets_list.append(item)
-
         data = {
             "general": general_cfg,
             "datasets": datasets_list,
@@ -200,15 +184,8 @@ class MusubiConfigBuilder:
         batch_size: int = 1,
     ) -> str:
         """Sinh câu lệnh Pre-cache VAE Latents cho Musubi."""
-        arch = self.model_info.get("arch", "wan21")
-        if arch in ["wan21", "wan22"]:
-            script = "wan_cache_latents.py"
-            is_i2v = self.model_info.get("supports_i2v", False)
-            cmd = f"python {script} --dataset_config '{dataset_config_path}' --vae '{vae_path}' --batch_size {batch_size}"
-            if is_i2v and clip_vision_path:
-                cmd += f" --clip_vision '{clip_vision_path}' --i2v"
-            return cmd
-        elif arch in ["flux_kontext", "flux"]:
+        arch = self.model_info.get("arch", "flux_kontext")
+        if arch in ["flux_kontext", "flux"]:
             script = "src/musubi_tuner/flux_kontext_cache_latents.py" if arch == "flux_kontext" else "src/musubi_tuner/flux_cache_latents.py"
             return f"python {script} --dataset_config '{dataset_config_path}' --vae '{vae_path}' --batch_size {batch_size}"
         elif arch == "flux2":
@@ -220,9 +197,9 @@ class MusubiConfigBuilder:
         elif arch == "krea2":
             return f"python src/musubi_tuner/krea2_cache_latents.py --dataset_config '{dataset_config_path}' --vae '{vae_path}' --batch_size {batch_size}"
         else:
-            return f"python cache_latents.py --dataset_config '{dataset_config_path}' --vae '{vae_path}' --batch_size {batch_size}"
+            return f"python src/musubi_tuner/cache_latents.py --dataset_config '{dataset_config_path}' --vae '{vae_path}' --batch_size {batch_size}"
 
-    def build_cache_text_encoder_args(
+    def build_cache_text_encoder_outputs_args(
         self,
         dataset_config_path: str,
         text_encoder1_path: str,
@@ -230,11 +207,8 @@ class MusubiConfigBuilder:
         batch_size: int = 1,
     ) -> str:
         """Sinh câu lệnh Pre-cache Text Encoders cho Musubi."""
-        arch = self.model_info.get("arch", "wan21")
-        if arch in ["wan21", "wan22"]:
-            script = "wan_cache_text_encoder_outputs.py"
-            return f"python {script} --dataset_config '{dataset_config_path}' --t5 '{text_encoder1_path}' --batch_size {batch_size}"
-        elif arch in ["flux_kontext", "flux"]:
+        arch = self.model_info.get("arch", "flux_kontext")
+        if arch in ["flux_kontext", "flux"]:
             script = "src/musubi_tuner/flux_kontext_cache_text_encoder_outputs.py" if arch == "flux_kontext" else "src/musubi_tuner/flux_cache_text_encoder_outputs.py"
             cmd = f"python {script} --dataset_config '{dataset_config_path}' --clip_l '{text_encoder1_path}'"
             if text_encoder2_path:
@@ -249,7 +223,10 @@ class MusubiConfigBuilder:
         elif arch == "krea2":
             return f"python src/musubi_tuner/krea2_cache_text_encoder_outputs.py --dataset_config '{dataset_config_path}' --text_encoder '{text_encoder1_path}'"
         else:
-            return f"python cache_text_encoder_outputs.py --dataset_config '{dataset_config_path}' --text_encoder '{text_encoder1_path}'"
+            return f"python src/musubi_tuner/cache_text_encoder_outputs.py --dataset_config '{dataset_config_path}' --text_encoder '{text_encoder1_path}'"
+
+    # Alias để tương thích
+    build_cache_text_encoder_args = build_cache_text_encoder_outputs_args
 
     def build_train_args(
         self,
@@ -271,8 +248,8 @@ class MusubiConfigBuilder:
         fp8_base: bool = True,
     ) -> str:
         """Sinh chuỗi tham số CLI kích hoạt huấn luyện Musubi qua Accelerate."""
-        arch = self.model_info.get("arch", "wan21")
-        script = self.model_info.get("musubi_train_script", "wan_train_network.py")
+        arch = self.model_info.get("arch", "flux_kontext")
+        script = self.model_info.get("musubi_train_script", "src/musubi_tuner/flux_kontext_train_network.py")
 
         args = [
             "accelerate launch",
@@ -291,11 +268,10 @@ class MusubiConfigBuilder:
             f"--save_every_n_epochs {save_every_n_epochs}",
             f"--mixed_precision {mixed_precision}",
             f"--save_precision {mixed_precision}",
+            "--sdpa",
         ]
 
-        if arch in ["wan21", "wan22"]:
-            args.append("--network_module networks.lora_wan")
-        elif arch in ["flux", "flux_kontext", "flux2"]:
+        if arch in ["flux", "flux_kontext", "flux2"]:
             args.append("--network_module networks.lora_flux")
         elif "qwen" in arch:
             args.append("--network_module networks.lora_qwen")

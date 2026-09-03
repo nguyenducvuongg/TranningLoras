@@ -23,16 +23,14 @@ def parse_folder_steps(folder_path: str) -> Tuple[int, str]:
 
 
 def check_folder_stats(folder_path: str) -> Dict[str, Any]:
-    """Kiểm tra số lượng ảnh, video và file caption trong một thư mục."""
+    """Kiểm tra số lượng ảnh và file caption trong một thư mục."""
     imgs = get_supported_images(folder_path)
-    vids = get_supported_videos(folder_path)
     txts = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".txt")] if os.path.exists(folder_path) else []
 
     repeats, concept = parse_folder_steps(folder_path)
     return {
         "path": folder_path,
         "image_count": len(imgs),
-        "video_count": len(vids),
         "caption_count": len(txts),
         "repeats": repeats,
         "concept": concept,
@@ -46,7 +44,7 @@ def build_dataset_list(
 ) -> List[Dict[str, Any]]:
     """
     Xây dựng danh sách cấu hình Dataset từ chuỗi đường dẫn (phân tách bởi dấu phẩy).
-    Tự động ghép cặp Control Folder nếu có.
+    Tự động ghép cặp Control Folder nếu có (cho Paired Control LoRA: Skin/Retouch/Upscale/Product).
     """
     raw_dirs = [d.strip() for d in train_folders.split(",") if d.strip()]
     datasets = []
@@ -64,7 +62,6 @@ def build_dataset_list(
             "repeats": stats["repeats"],
             "concept": stats["concept"],
             "image_count": stats["image_count"],
-            "video_count": stats["video_count"],
         }
         if resolution:
             item["resolution"] = resolution
@@ -75,3 +72,11 @@ def build_dataset_list(
         datasets.append(item)
 
     return datasets
+
+
+def calculate_bucket_resolution(width: int, height: int, max_pixels: int = 1024 * 1024) -> Tuple[int, int]:
+    """Tính toán độ phân giải bucket chia hết cho 64 giữ nguyên tỉ lệ khung hình (aspect ratio)."""
+    scale = (max_pixels / (width * height)) ** 0.5
+    new_w = max(64, int(round(width * scale / 64.0) * 64))
+    new_h = max(64, int(round(height * scale / 64.0) * 64))
+    return new_w, new_h

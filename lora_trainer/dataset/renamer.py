@@ -43,19 +43,21 @@ def standardize_single_folder(
                 pass
         items.append({"orig_img": img_path, "ext": ext, "caption": caption})
 
-    # Bước 2: Đổi tên trung gian tạm thời để chống conflict
+    # Bước 2: Đổi tên trung gian tạm thời cho ảnh để chống conflict
     temp_pairs = []
     for idx, it in enumerate(items):
         tmp_img = os.path.join(folder_path, f"__tmp_renamer_{idx}{it['ext']}")
         shutil.move(it["orig_img"], tmp_img)
-        # Xóa file txt cũ nếu có
+        temp_pairs.append({"tmp_img": tmp_img, "ext": it["ext"], "caption": it["caption"], "orig_img": it["orig_img"]})
+
+    # Xóa file txt cũ sau khi đã lưu caption an toàn
+    for it in items:
         orig_txt = os.path.splitext(it["orig_img"])[0] + ".txt"
         if os.path.exists(orig_txt):
             try:
                 os.remove(orig_txt)
             except Exception:
                 pass
-        temp_pairs.append({"tmp_img": tmp_img, "ext": it["ext"], "caption": it["caption"]})
 
     # Bước 3: Đổi tên chính thức theo định dạng chuẩn
     count = 0
@@ -85,12 +87,25 @@ def batch_standardize_datasets(
 ) -> None:
     """
     Chuẩn hóa đồng bộ cho danh sách các thư mục huấn luyện và thư mục Control đối chiếu 1-1.
+    Có cảnh báo nếu số lượng ảnh giữa train_data và control_data không khớp nhau.
     """
     t_dirs = [d.strip() for d in train_folders.split(",") if d.strip()]
     c_dirs = [d.strip() for d in control_folders.split(",") if d.strip()] if control_folders else []
 
+    t_counts = []
     for t_dir in t_dirs:
-        standardize_single_folder(t_dir, prefix=prefix, digits=digits, auto_create_txt=auto_create_txt)
+        c = standardize_single_folder(t_dir, prefix=prefix, digits=digits, auto_create_txt=auto_create_txt)
+        t_counts.append(c)
 
+    c_counts = []
     for c_dir in c_dirs:
-        standardize_single_folder(c_dir, prefix=prefix, digits=digits, auto_create_txt=False)
+        c = standardize_single_folder(c_dir, prefix=prefix, digits=digits, auto_create_txt=False)
+        c_counts.append(c)
+
+    if t_counts and c_counts:
+        sum_t = sum(t_counts)
+        sum_c = sum(c_counts)
+        if sum_t != sum_c:
+            print(f"⚠️ CẢNH BÁO: Số lượng ảnh Train ({sum_t}) và Control ({sum_c}) không khớp 1-1! Vui lòng kiểm tra lại để tránh lệch cặp.")
+        else:
+            print(f"✅ Xác nhận khớp 1-1 hoàn hảo giữa Train và Control: {sum_t} cặp ảnh.")

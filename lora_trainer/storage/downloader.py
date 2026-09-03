@@ -262,4 +262,10 @@ def requests_fallback_download(url: str, dest_path: str, token: Optional[str] = 
                 pbar.update(len(chunk))
 
     print(f"✅ Tải thành công: {dest_path}")
+    aria2_temp = dest_path + ".aria2"
+    if os.path.exists(aria2_temp):
+        try:
+            os.remove(aria2_temp)
+        except Exception:
+            pass
     return dest_path

@@ -25,11 +25,13 @@ class ToolkitConfigBuilder:
         model_name: str,
         output_dir: str,
         output_name: str,
+        model_path: Optional[str] = None,
     ):
         self.model_name = model_name
         self.model_info = get_model_info(model_name)
         self.output_dir = output_dir
         self.output_name = output_name
+        self.model_path = model_path
         safe_makedirs(output_dir)
 
     def build_yaml_config(
@@ -51,6 +53,7 @@ class ToolkitConfigBuilder:
         sample_resolution: Optional[List[int]] = None,
         wandb_api_key: Optional[str] = None,
         trigger_word: Optional[str] = None,
+        model_path: Optional[str] = None,
     ) -> str:
         """Sinh file YAML cấu hình hoàn chỉnh cho AI-Toolkit."""
         datasets_cfg = []
@@ -79,6 +82,11 @@ class ToolkitConfigBuilder:
             samples_list.append({"prompt": f"photo of {trigger_word if trigger_word else 'subject'}, high quality, 8k"})
 
         arch_name = self.model_info.get("toolkit_arch", self.model_info.get("arch", "flux"))
+        
+        # Ưu tiên model_path nếu đã tải cục bộ
+        active_model_path = model_path or self.model_path
+        if not active_model_path or not os.path.exists(active_model_path):
+            active_model_path = self.model_info.get("name_or_path", self.model_name)
 
         process_config: Dict[str, Any] = {
             "type": "diffusion_trainer",
@@ -116,7 +124,7 @@ class ToolkitConfigBuilder:
                 "dtype": "bfloat16",
             },
             "model": {
-                "name_or_path": self.model_info.get("name_or_path", self.model_name),
+                "name_or_path": active_model_path,
                 "is_flux": "flux" in arch_name,
                 "quantize": quantize,
                 "low_vram": low_vram,

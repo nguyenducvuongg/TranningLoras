@@ -88,8 +88,17 @@ def download_model_suite(
 
         if downloaded and is_file_complete(downloaded):
             resolved_paths[comp_type] = downloaded
+        elif is_file_complete(comp["drive_path"]):
+            resolved_paths[comp_type] = comp["drive_path"]
+        elif is_file_complete(comp.get("local_path")):
+            resolved_paths[comp_type] = comp["local_path"]
         else:
             resolved_paths[comp_type] = comp["drive_path"]
+            if comp_type == "dit":
+                raise RuntimeError(
+                    f"❌ Không thể tải thành công mô hình cốt lõi '{comp['name']}' ({fname})!\n"
+                    f"Vui lòng kiểm tra lại kết nối mạng hoặc cung cấp HuggingFace Token / CivitAI API Key hợp lệ trong ô cấu hình."
+                )
 
     print("=======================================================\n")
     return resolved_paths
