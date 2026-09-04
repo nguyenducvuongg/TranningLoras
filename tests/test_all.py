@@ -213,6 +213,31 @@ class TestConfigBuilders(unittest.TestCase):
         sanitized_cmd = sanitize_musubi_train_command(raw_cmd)
         self.assertIn("--fp8_base --fp8_scaled", sanitized_cmd)
 
+        # Test safe sample_prompts with vae
+        dummy_vae = os.path.join(self.temp_dir, "vae.safetensors")
+        dummy_te = os.path.join(self.temp_dir, "te.safetensors")
+        dummy_sample = os.path.join(self.temp_dir, "sample.txt")
+        open(dummy_vae, "w").close()
+        open(dummy_te, "w").close()
+        open(dummy_sample, "w").close()
+
+        cmd_with_vae = krea_builder.build_train_args(
+            dataset_config_path="/content/dataset.toml",
+            dit_model_path="/content/krea2.safetensors",
+            vae_path=dummy_vae,
+            text_encoder_path=dummy_te,
+            sample_prompt_file=dummy_sample,
+            sample_every_n_steps=100,
+        )
+        self.assertIn(f"--vae '{dummy_vae}'", cmd_with_vae)
+        self.assertIn(f"--sample_prompts '{dummy_sample}'", cmd_with_vae)
+
+        # Test sanitizer strips sample_prompts if vae is missing
+        unsafe_sample_cmd = "accelerate launch krea2_train_network.py --sample_prompts 'sample.txt' --sample_every_n_steps 100"
+        safe_stripped_cmd = sanitize_musubi_train_command(unsafe_sample_cmd)
+        self.assertNotIn("--sample_prompts", safe_stripped_cmd)
+        self.assertNotIn("--sample_every_n_steps", safe_stripped_cmd)
+
     def test_toolkit_yaml_config(self):
         builder = ToolkitConfigBuilder(
             model_name="FLUX.1-dev",

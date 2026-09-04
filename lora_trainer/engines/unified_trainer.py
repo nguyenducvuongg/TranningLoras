@@ -237,6 +237,7 @@ def run_unified_training(
             sample_prompt_file=sample_txt_path,
             sample_every_n_steps=sample_every_n_steps,
             text_encoder_path=clip1_path,
+            vae_path=vae_path,
         )
 
         success = run_musubi_pipeline(

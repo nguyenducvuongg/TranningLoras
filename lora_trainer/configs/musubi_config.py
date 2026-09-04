@@ -259,6 +259,7 @@ class MusubiConfigBuilder:
         gradient_checkpointing: bool = True,
         fp8_base: bool = True,
         text_encoder_path: Optional[str] = None,
+        vae_path: Optional[str] = None,
     ) -> str:
         """Sinh chuỗi tham số CLI kích hoạt huấn luyện Musubi qua Accelerate."""
         arch = self.model_info.get("arch", "flux_kontext")
@@ -318,6 +319,9 @@ class MusubiConfigBuilder:
         if boundary is not None:
             args.append(f"--timestep_boundary {boundary}")
 
+        if vae_path and os.path.exists(vae_path):
+            args.append(f"--vae '{vae_path}'")
+
         if text_encoder_path and os.path.exists(text_encoder_path):
             if arch in ["flux", "flux_kontext"]:
                 args.append(f"--clip_l '{text_encoder_path}'")
@@ -325,9 +329,10 @@ class MusubiConfigBuilder:
                 args.append(f"--text_encoder '{text_encoder_path}'")
 
         if sample_prompt_file and os.path.exists(sample_prompt_file) and sample_every_n_steps:
-            if arch == "krea2" and (not text_encoder_path or not os.path.exists(text_encoder_path)):
-                pass
-            else:
+            has_vae = bool(vae_path and os.path.exists(vae_path))
+            has_te = bool(text_encoder_path and os.path.exists(text_encoder_path))
+            # Musubi bắt buộc phải có đồng thời cả VAE và Text Encoder để decode và encode sample trong lúc train
+            if has_vae and has_te:
                 args.append(f"--sample_prompts '{sample_prompt_file}'")
                 args.append(f"--sample_every_n_steps {sample_every_n_steps}")
 

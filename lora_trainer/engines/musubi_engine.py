@@ -85,11 +85,24 @@ def sanitize_musubi_train_command(command: Optional[str]) -> Optional[str]:
     if not command:
         return command
 
-    # Krea 2 fp8 yêu cầu bắt buộc phải truyền --fp8_scaled cùng với --fp8_base
+    # 1. Krea 2 fp8 yêu cầu bắt buộc phải truyền --fp8_scaled cùng với --fp8_base
     if "krea2_train_network.py" in command:
         if "--fp8_base" in command and "--fp8_scaled" not in command:
             print("🛡️ Tự động bổ sung cờ bắt buộc '--fp8_scaled' cho Krea 2 fp8_base...")
             command = command.replace("--fp8_base", "--fp8_base --fp8_scaled")
+
+    # 2. Kiểm tra an toàn cho --sample_prompts trong Musubi:
+    # Nếu có --sample_prompts nhưng thiếu --vae hoặc thiếu text encoder:
+    # Musubi sẽ crash: TypeError: expected str, bytes or os.PathLike object, not NoneType trong load_vae()
+    if "--sample_prompts" in command:
+        import re
+        has_vae = ("--vae" in command)
+        has_te = ("--text_encoder" in command) or ("--clip_l" in command)
+        if not has_vae or not has_te:
+            print("🛡️ Bỏ qua --sample_prompts trong Musubi vì thiếu --vae hoặc text encoder (tránh lỗi load_vae NoneType)...")
+            command = re.sub(r"--sample_prompts\s+['\"][^'\"]+['\"]\s*", "", command)
+            command = re.sub(r"--sample_prompts\s+\S+\s*", "", command)
+            command = re.sub(r"--sample_every_n_steps\s+\d+\s*", "", command)
 
     return command
 
